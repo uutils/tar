@@ -17,7 +17,7 @@ const USAGE: &str = "sed [-n] script [file...]";
 #[uucore::main]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     let matches = uu_app().try_get_matches_from(args)?;
-// TODO
+    // TODO
     Ok(())
 }
 

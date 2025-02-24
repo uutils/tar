@@ -1,1 +1,1 @@
-uucore::bin!(uu_free);
+uucore::bin!(uu_sed);

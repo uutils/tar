@@ -2,10 +2,6 @@
 //
 // For the full copyright and license information, please view the LICENSE
 // file that was distributed with this source code.
-// spell-checker:ignore (words) symdir somefakedir
-
-use pretty_assertions::assert_eq;
-use regex::Regex;
 
 use crate::common::util::TestScenario;
 
@@ -16,5 +12,5 @@ fn test_invalid_arg() {
 
 #[test]
 fn test_sed() {
-    let result = new_ucmd!().succeeds();
+    new_ucmd!().succeeds();
 }

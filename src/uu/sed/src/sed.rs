@@ -4,12 +4,7 @@
 // file that was distributed with this source code.
 
 use clap::{arg, Command};
-use std::{
-    fs,
-    io::{self, BufRead, Write},
-    process,
-};
-use uucore::{error::UResult, format_usage, help_about, help_usage};
+use uucore::{error::UResult, format_usage};
 
 const ABOUT: &str = "Stream editor for filtering and transforming text";
 const USAGE: &str = "sed [-n] script [file...]";

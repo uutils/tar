@@ -5,7 +5,7 @@
 
 //spell-checker: ignore (linux) rlimit prlimit coreutil ggroups uchild uncaptured scmd SHLVL canonicalized
 
-#![allow(dead_code)]
+#![allow(dead_code, unexpected_cfgs)]
 
 use pretty_assertions::assert_eq;
 #[cfg(any(target_os = "linux", target_os = "android"))]
@@ -25,7 +25,7 @@ use std::os::unix::process::ExitStatusExt;
 #[cfg(windows)]
 use std::os::windows::fs::{symlink_dir, symlink_file};
 #[cfg(windows)]
-use std::path::MAIN_SEPARATOR;
+use std::path::MAIN_SEPARATOR_STR;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitStatus, Output, Stdio};
 use std::rc::Rc;
@@ -171,7 +171,7 @@ impl CmdResult {
 
     /// Assert `stdout` as bytes with a predicate function returning a `bool`.
     #[track_caller]
-    pub fn stdout_check<'a, F>(&'a self, predicate: F) -> &Self
+    pub fn stdout_check<'a, F>(&'a self, predicate: F) -> &'a Self
     where
         F: Fn(&'a [u8]) -> bool,
     {
@@ -186,7 +186,7 @@ impl CmdResult {
 
     /// Assert `stdout` as `&str` with a predicate function returning a `bool`.
     #[track_caller]
-    pub fn stdout_str_check<'a, F>(&'a self, predicate: F) -> &Self
+    pub fn stdout_str_check<'a, F>(&'a self, predicate: F) -> &'a Self
     where
         F: Fn(&'a str) -> bool,
     {
@@ -201,7 +201,7 @@ impl CmdResult {
 
     /// Assert `stderr` as bytes with a predicate function returning a `bool`.
     #[track_caller]
-    pub fn stderr_check<'a, F>(&'a self, predicate: F) -> &Self
+    pub fn stderr_check<'a, F>(&'a self, predicate: F) -> &'a Self
     where
         F: Fn(&'a [u8]) -> bool,
     {
@@ -216,7 +216,7 @@ impl CmdResult {
 
     /// Assert `stderr` as `&str` with a predicate function returning a `bool`.
     #[track_caller]
-    pub fn stderr_str_check<'a, F>(&'a self, predicate: F) -> &Self
+    pub fn stderr_str_check<'a, F>(&'a self, predicate: F) -> &'a Self
     where
         F: Fn(&'a str) -> bool,
     {
@@ -993,7 +993,7 @@ impl AtPath {
 
     pub fn relative_symlink_file(&self, original: &str, link: &str) {
         #[cfg(windows)]
-        let original = original.replace('/', &MAIN_SEPARATOR.to_string());
+        let original = original.replace('/', MAIN_SEPARATOR_STR);
         log_info(
             "symlink",
             format!("{},{}", &original, &self.plus_as_string(link)),
@@ -1015,7 +1015,7 @@ impl AtPath {
 
     pub fn relative_symlink_dir(&self, original: &str, link: &str) {
         #[cfg(windows)]
-        let original = original.replace('/', &MAIN_SEPARATOR.to_string());
+        let original = original.replace('/', MAIN_SEPARATOR_STR);
         log_info(
             "symlink",
             format!("{},{}", &original, &self.plus_as_string(link)),
@@ -1401,12 +1401,12 @@ impl UCommand {
     ///
     /// These __defaults__ are:
     /// * `bin_path`: Depending on the platform and os, the native shell (unix -> `/bin/sh` etc.).
-    /// This default also requires to set the first argument to `-c` on unix (`/C` on windows) if
-    /// this argument wasn't specified explicitly by the user.
+    ///   This default also requires to set the first argument to `-c` on unix (`/C` on windows) if
+    ///   this argument wasn't specified explicitly by the user.
     /// * `util_name`: `None`. If neither `bin_path` nor `util_name` were given the arguments are
-    /// run in a shell (See `bin_path` above).
+    ///   run in a shell (See `bin_path` above).
     /// * `temp_dir`: If `current_dir` was not set, a new temporary directory will be created in
-    /// which this command will be run and `current_dir` will be set to this `temp_dir`.
+    ///   which this command will be run and `current_dir` will be set to this `temp_dir`.
     /// * `current_dir`: The temporary directory given by `temp_dir`.
     /// * `timeout`: `30 seconds`
     /// * `stdin`: `Stdio::null()`

@@ -4,6 +4,8 @@
 // file that was distributed with this source code.
 
 use clap::{arg, Arg, Command};
+//use clap::builder::OsStr;
+use std::ffi::OsString;
 use std::path::PathBuf;
 use uucore::{error::UResult, format_usage};
 
@@ -12,6 +14,8 @@ const USAGE: &str = "sed [OPTION]... {singular-script} [input-file]...";
 
 #[uucore::main]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
+    // Skip binary name
+    let args: Vec<OsString> = args.skip(1).collect();
     // TODO remove underscore prefix when var is used
     let _matches = uu_app().try_get_matches_from(args)?;
     // TODO

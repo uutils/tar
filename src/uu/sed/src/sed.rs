@@ -4,11 +4,9 @@
 // file that was distributed with this source code.
 
 use clap::{arg, Arg, Command};
-//use clap::builder::OsStr;
-use std::ffi::OsString;
 use std::path::PathBuf;
-use uucore::{format_usage};
 use uucore::error::{UResult, UUsageError};
+use uucore::format_usage;
 
 const ABOUT: &str = "Stream editor for filtering and transforming text";
 const USAGE: &str = "sed [OPTION]... default-script [input-file]...";
@@ -17,8 +15,8 @@ const USAGE: &str = "sed [OPTION]... default-script [input-file]...";
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     let matches = uu_app().try_get_matches_from(args)?;
 
-    println!("Program continues normally...");
-    let script_through_options = matches.contains_id("expression") || matches.contains_id("script-file");
+    let script_through_options =
+        matches.contains_id("expression") || matches.contains_id("script-file");
     let no_positional_script = matches.get_many::<String>("script").is_none();
     if !script_through_options && no_positional_script {
         return Err(UUsageError::new(1, "missing script"));
@@ -72,8 +70,7 @@ pub fn uu_app() -> Command {
             // Access with .get_one::<u32>("line-length")
             arg!(-l --length <NUM> "Specify the 'l' command line-wrap length.")
                 .value_parser(clap::value_parser!(u32)),
-            arg!(-n --quiet "Suppress automatic printing of pattern space.")
-                .aliases(["silent"]),
+            arg!(-n --quiet "Suppress automatic printing of pattern space.").aliases(["silent"]),
             arg!(--posix "Disable all POSIX extensions."),
             arg!(-s --separate "Consider files as separate rather than as a long stream."),
             arg!(--sandbox "Operate in a sandbox by disabling e/r/w commands."),

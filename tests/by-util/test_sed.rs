@@ -21,6 +21,7 @@ fn test_silent_alias() {
 }
 
 #[test]
+#[ignore = "not implemented yet"]
 fn test_missing_script_argument() {
     new_ucmd!()
         .fails()

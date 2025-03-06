@@ -9,7 +9,7 @@ use uucore::error::{UResult, UUsageError};
 use uucore::format_usage;
 
 const ABOUT: &str = "Stream editor for filtering and transforming text";
-const USAGE: &str = "sed [OPTION]... default-script [input-file]...";
+const USAGE: &str = "sed [OPTION]... [script] [file]...";
 
 #[uucore::main]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {

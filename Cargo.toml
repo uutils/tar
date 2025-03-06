@@ -9,7 +9,7 @@ version = "0.0.1"
 authors = ["uutils developers"]
 license = "MIT"
 description = "sed ~ implemented as universal (cross-platform) utils, written in Rust"
-default-run = "sed"
+default-run = "sedapp"
 
 homepage = "https://github.com/uutils/sed"
 repository = "https://github.com/uutils/sed"
@@ -79,8 +79,8 @@ phf_codegen = { workspace = true }
 
 
 [[bin]]
-name = "sed"
-path = "src/bin/sed.rs"
+name = "sedapp"
+path = "src/bin/sedapp.rs"
 
 [[bin]]
 name = "uudoc"

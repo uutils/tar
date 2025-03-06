@@ -45,7 +45,7 @@ static MULTIPLE_STDIN_MEANINGLESS: &str = "Ucommand is designed around a typical
 
 static NO_STDIN_MEANINGLESS: &str = "Setting this flag has no effect if there is no stdin";
 
-pub const TESTS_BINARY: &str = env!("CARGO_BIN_EXE_sed");
+pub const TESTS_BINARY: &str = env!("CARGO_BIN_EXE_sedapp");
 pub const PATH: &str = env!("PATH");
 
 /// Default environment variables to run the commands with

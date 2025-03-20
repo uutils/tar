@@ -13,7 +13,7 @@ const USAGE: &str = "sed [OPTION]... [script] [file]...";
 
 // The specification of a script: through a string or a file
 #[derive(Debug, PartialEq)]
-pub enum ScriptValue {
+enum ScriptValue {
     StringVal(String),
     PathVal(PathBuf),
 }
@@ -23,7 +23,7 @@ pub enum ScriptValue {
  * return vectors of all scripts and input files in the specified order.
  * If no script is specified fail with "missing script" error.
  */
-pub fn get_scripts_files(matches: &ArgMatches) -> UResult<(Vec<ScriptValue>, Vec<PathBuf>)> {
+fn get_scripts_files(matches: &ArgMatches) -> UResult<(Vec<ScriptValue>, Vec<PathBuf>)> {
     let mut indexed_scripts: Vec<(usize, ScriptValue)> = Vec::new();
     let mut files: Vec<PathBuf> = Vec::new();
 
@@ -160,4 +160,103 @@ pub fn uu_app() -> Command {
                 .help("Separate lines by NUL characters.")
                 .action(clap::ArgAction::SetTrue),
         ])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*; // Allows access to private functions/items in this module
+
+    // Test the get_scripts_files function
+
+    // Helper function for supplying arguments
+    fn get_test_matches(args: &[&str]) -> ArgMatches {
+        uu_app().get_matches_from(["myapp"].iter().chain(args.iter()))
+    }
+
+    #[test]
+    fn test_script_as_first_argument() {
+        let matches = get_test_matches(&["1d", "file1.txt"]);
+        let (scripts, files) = get_scripts_files(&matches).expect("Should succeed");
+
+        assert_eq!(scripts, vec![ScriptValue::StringVal("1d".to_string())]);
+        assert_eq!(files, vec![PathBuf::from("file1.txt")]);
+    }
+
+    #[test]
+    fn test_expression_argument() {
+        let matches = get_test_matches(&["-e", "s/foo/bar/", "file1.txt"]);
+        let (scripts, files) = get_scripts_files(&matches).expect("Should succeed");
+
+        assert_eq!(
+            scripts,
+            vec![ScriptValue::StringVal("s/foo/bar/".to_string())]
+        );
+        assert_eq!(files, vec![PathBuf::from("file1.txt")]);
+    }
+
+    #[test]
+    fn test_script_file_argument() {
+        let matches = get_test_matches(&["-f", "script.sed", "file1.txt"]);
+        let (scripts, files) = get_scripts_files(&matches).expect("Should succeed");
+
+        assert_eq!(
+            scripts,
+            vec![ScriptValue::PathVal(PathBuf::from("script.sed"))]
+        );
+        assert_eq!(files, vec![PathBuf::from("file1.txt")]);
+    }
+
+    #[test]
+    fn test_multiple_files() {
+        let matches = get_test_matches(&["-e", "s/foo/bar/", "file1.txt", "file2.txt"]);
+        let (scripts, files) = get_scripts_files(&matches).expect("Should succeed");
+
+        assert_eq!(
+            scripts,
+            vec![ScriptValue::StringVal("s/foo/bar/".to_string())]
+        );
+        assert_eq!(
+            files,
+            vec![PathBuf::from("file1.txt"), PathBuf::from("file2.txt")]
+        );
+    }
+
+    #[test]
+    fn test_multiple_files_script() {
+        let matches = get_test_matches(&["s/foo/bar/", "file1.txt", "file2.txt"]);
+        let (scripts, files) = get_scripts_files(&matches).expect("Should succeed");
+
+        assert_eq!(
+            scripts,
+            vec![ScriptValue::StringVal("s/foo/bar/".to_string())]
+        );
+        assert_eq!(
+            files,
+            vec![PathBuf::from("file1.txt"), PathBuf::from("file2.txt")]
+        );
+    }
+
+    #[test]
+    fn test_stdin_when_no_files() {
+        let matches = get_test_matches(&["-e", "s/foo/bar/"]);
+        let (scripts, files) = get_scripts_files(&matches).expect("Should succeed");
+
+        assert_eq!(
+            scripts,
+            vec![ScriptValue::StringVal("s/foo/bar/".to_string())]
+        );
+        assert_eq!(files, vec![PathBuf::from("-")]); // Stdin should be used
+    }
+
+    #[test]
+    fn test_stdin_when_no_files_script() {
+        let matches = get_test_matches(&["s/foo/bar/"]);
+        let (scripts, files) = get_scripts_files(&matches).expect("Should succeed");
+
+        assert_eq!(
+            scripts,
+            vec![ScriptValue::StringVal("s/foo/bar/".to_string())]
+        );
+        assert_eq!(files, vec![PathBuf::from("-")]); // Stdin should be used
+    }
 }

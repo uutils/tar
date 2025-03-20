@@ -3,6 +3,13 @@
 // For the full copyright and license information, please view the LICENSE
 // file that was distributed with this source code.
 
+pub mod command;
+pub mod compiler;
+pub mod processor;
+
+use crate::command::ScriptValue;
+use crate::compiler::compile;
+use crate::processor::process;
 use clap::{arg, Arg, ArgMatches, Command};
 use std::path::PathBuf;
 use uucore::error::{UResult, UUsageError};
@@ -10,13 +17,6 @@ use uucore::format_usage;
 
 const ABOUT: &str = "Stream editor for filtering and transforming text";
 const USAGE: &str = "sed [OPTION]... [script] [file]...";
-
-// The specification of a script: through a string or a file
-#[derive(Debug, PartialEq)]
-enum ScriptValue {
-    StringVal(String),
-    PathVal(PathBuf),
-}
 
 /*
  * Iterate through script and file arguments specified in matches and
@@ -95,10 +95,9 @@ fn get_scripts_files(matches: &ArgMatches) -> UResult<(Vec<ScriptValue>, Vec<Pat
 #[uucore::main]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     let matches = uu_app().try_get_matches_from(args)?;
-
-    let (_scripts, _files) = get_scripts_files(&matches)?;
-    // TODO apply scripts on files.
-
+    let (scripts, files) = get_scripts_files(&matches)?;
+    let executable = compile(scripts)?;
+    process(executable, files)?;
     Ok(())
 }
 

@@ -3,26 +3,102 @@
 // For the full copyright and license information, please view the LICENSE
 // file that was distributed with this source code.
 
-use clap::{arg, Arg, Command};
+use clap::{arg, Arg, ArgMatches, Command};
 use std::path::PathBuf;
 use uucore::error::{UResult, UUsageError};
 use uucore::format_usage;
 
 const ABOUT: &str = "Stream editor for filtering and transforming text";
-const USAGE: &str = "sed [OPTION]... default-script [input-file]...";
+const USAGE: &str = "sed [OPTION]... [script] [file]...";
+
+// The specification of a script: through a string or a file
+#[derive(Debug, PartialEq)]
+pub enum ScriptValue {
+    StringVal(String),
+    PathVal(PathBuf),
+}
+
+/*
+ * Iterate through script and file arguments specified in matches and
+ * return vectors of all scripts and input files in the specified order.
+ * If no script is specified fail with "missing script" error.
+ */
+pub fn get_scripts_files(matches: &ArgMatches) -> UResult<(Vec<ScriptValue>, Vec<PathBuf>)> {
+    let mut indexed_scripts: Vec<(usize, ScriptValue)> = Vec::new();
+    let mut files: Vec<PathBuf> = Vec::new();
+
+    let script_through_options =
+        // The specification of a script: through a string or a file.
+        matches.contains_id("expression") || matches.contains_id("script-file");
+
+    if script_through_options {
+        // Second and third POSIX usage cases; clap script arg is actually an input file
+        // sed [-En] -e script [-e script]... [-f script_file]... [file...]
+        // sed [-En] [-e script]... -f script_file [-f script_file]... [file...]
+        if let Some(val) = matches.get_one::<String>("script") {
+            files.push(PathBuf::from(val.to_owned()));
+        }
+    } else {
+        // First POSIX spec usage case; script is the first arg.
+        // sed [-En] script [file...]
+        if let Some(val) = matches.get_one::<String>("script") {
+            indexed_scripts.push((0, ScriptValue::StringVal(val.to_owned())));
+        } else {
+            return Err(UUsageError::new(1, "missing script"));
+        }
+    }
+
+    // Capture -e occurrences (STRING)
+    if let Some(indices) = matches.indices_of("expression") {
+        for (idx, val) in indices.zip(matches.get_many::<String>("expression").unwrap_or_default())
+        {
+            indexed_scripts.push((idx, ScriptValue::StringVal(val.to_owned())));
+        }
+    }
+
+    // Capture -f occurrences (FILE)
+    if let Some(indices) = matches.indices_of("script-file") {
+        for (idx, val) in indices.zip(
+            matches
+                .get_many::<PathBuf>("script-file")
+                .unwrap_or_default(),
+        ) {
+            indexed_scripts.push((idx, ScriptValue::PathVal(val.to_owned())));
+        }
+    }
+
+    // Sort by index to preserve argument order.
+    indexed_scripts.sort_by_key(|k| k.0);
+    // Keep only the values.
+    let scripts = indexed_scripts
+        .into_iter()
+        .map(|(_, value)| value)
+        .collect();
+
+    let rest_files: Vec<PathBuf> = matches
+        .get_many::<PathBuf>("file")
+        .unwrap_or_default()
+        .cloned()
+        .collect();
+    if !rest_files.is_empty() {
+        files.extend(rest_files);
+    }
+
+    // Read from stdin if no file has been specified.
+    if files.is_empty() {
+        files.push(PathBuf::from("-"));
+    }
+
+    Ok((scripts, files))
+}
 
 #[uucore::main]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     let matches = uu_app().try_get_matches_from(args)?;
 
-    let script_through_options =
-        matches.contains_id("expression") || matches.contains_id("script-file");
-    let no_positional_script = matches.get_many::<String>("script").is_none();
-    if !script_through_options && no_positional_script {
-        return Err(UUsageError::new(1, "missing script"));
-    }
+    let (_scripts, _files) = get_scripts_files(&matches)?;
+    // TODO apply scripts on files.
 
-    // TODO
     Ok(())
 }
 
@@ -34,7 +110,10 @@ pub fn uu_app() -> Command {
         .infer_long_args(true)
         .args([
             arg!([script] "Script to execute if not otherwise provided."),
-            arg!([file] ... "Input files"),
+            Arg::new("file")
+                .help("Input files")
+                .value_parser(clap::value_parser!(PathBuf))
+                .num_args(0..),
             Arg::new("all-output-files")
                 .long("all-output-files")
                 .short('a')

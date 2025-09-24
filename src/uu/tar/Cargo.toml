@@ -1,0 +1,25 @@
+[package]
+name = "uu_tar"
+version = "0.0.1"
+edition = "2021"
+authors = ["uutils developers"]
+license = "MIT"
+description = "tar ~ (uutils) an archiving utility"
+
+homepage = "https://github.com/uutils/tar"
+repository = "https://github.com/uutils/tar/tree/main/src/uu/tar"
+keywords = ["acl", "uutils", "cross-platform", "cli", "utility"]
+categories = ["command-line-utilities"]
+
+
+[dependencies]
+uucore = { workspace = true }
+clap = { workspace = true }
+regex = { workspace = true }
+
+[lib]
+path = "src/tar.rs"
+
+[[bin]]
+name = "tar"
+path = "src/main.rs"

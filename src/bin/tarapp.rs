@@ -3,9 +3,9 @@
 // For the full copyright and license information, please view the LICENSE
 // file that was distributed with this source code.
 
-use std::io;
+use std::env;
+use tar::uumain;
 
-fn main() -> io::Result<()> {
-    println!("uudoc: documentation generation not implemented for tar");
-    Ok(())
+fn main() {
+    std::process::exit(uumain(env::args_os()));
 }

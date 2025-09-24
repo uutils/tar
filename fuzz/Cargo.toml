@@ -1,0 +1,31 @@
+[package]
+name = "uucore-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+console = "0.16.0"
+libfuzzer-sys = "0.4.7"
+libc = "0.2.153"
+tempfile = "3.15.0"
+rand = { version = "0.9.0", features = ["small_rng"] }
+similar = "2.5.0"
+uucore = { version = "0.2.0", features = ["libc"] }
+uufuzz = "0.2.0"
+
+uu_tar = { path = "../src/uu/tar/" }
+
+
+# Prevent this from interfering with workspaces
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "fuzz_tar"
+path = "fuzz_targets/fuzz_tar.rs"
+test = false
+doc = false

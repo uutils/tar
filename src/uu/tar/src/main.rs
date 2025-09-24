@@ -1,1 +1,1 @@
-uucore::bin!(uu_sed);
+uucore::bin!(uu_tar);

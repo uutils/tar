@@ -3,20 +3,28 @@
 // For the full copyright and license information, please view the LICENSE
 // file that was distributed with this source code.
 
-use clap::{arg, Arg, ArgMatches, Command};
+use clap::{arg, Arg, Command};
 use std::path::PathBuf;
-use uucore::error::{UResult, UUsageError};
+use uucore::error::UResult;
 use uucore::format_usage;
 
 const ABOUT: &str = "an archiving utility";
-const USAGE: &str = "tar [OPTION]... [script] [file]...";
+const USAGE: &str = "tar {A|c|d|r|t|u|x}[GnSkUWOmpsMBiajJzZhPlRvwo] [ARG...]";
 
 #[uucore::main]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     let matches = uu_app().try_get_matches_from(args)?;
-    let (scripts, files) = get_scripts_files(&matches)?;
-    let executable = compile(scripts)?;
-    process(executable, files)?;
+
+    // For now, just print a basic message indicating the command was parsed
+    println!("tar: basic implementation - command line parsed successfully");
+
+    // Check if any files were specified
+    if let Some(files) = matches.get_many::<PathBuf>("file") {
+        for file in files {
+            println!("File: {}", file.display());
+        }
+    }
+
     Ok(())
 }
 
@@ -27,56 +35,30 @@ pub fn uu_app() -> Command {
         .override_usage(format_usage(USAGE))
         .infer_long_args(true)
         .args([
-            arg!([script] "Script to execute if not otherwise provided."),
+            // Main operation modes
+            arg!(-A --catenate "Append tar files to archive"),
+            arg!(-c --create "Create a new archive"),
+            arg!(-d --diff "Find differences between archive and file system").alias("compare"),
+            arg!(-r --append "Append files to end of archive"),
+            arg!(-t --list "List contents of archive"),
+            arg!(-u --update "Only append files newer than copy in archive"),
+            arg!(-x --extract "Extract files from archive").alias("get"),
+            // Archive file
+            arg!(-f --file <ARCHIVE> "Use archive file").value_parser(clap::value_parser!(PathBuf)),
+            // Compression options
+            arg!(-z --gzip "Filter through gzip"),
+            arg!(-j --bzip2 "Filter through bzip2"),
+            arg!(-J --xz "Filter through xz"),
+            // Common options
+            arg!(-v --verbose "Verbosely list files processed"),
+            arg!(-h --dereference "Follow symlinks"),
+            arg!(-p --preserve-permissions "Extract information about file permissions"),
+            arg!(-P --absolute-names "Don't strip leading '/' from file names"),
+            // Files to process
             Arg::new("file")
-                .help("Input files")
+                .help("Files to archive or extract")
                 .value_parser(clap::value_parser!(PathBuf))
                 .num_args(0..),
-            Arg::new("all-output-files")
-                .long("all-output-files")
-                .short('a')
-                .help("Create or truncate all output files before processing.")
-                .action(clap::ArgAction::SetTrue),
-            arg!(-b --binary "Treat files as binary: do not process CR+LFs."),
-            arg!(--debug "Annotate program execution."),
-            Arg::new("regexp-extended")
-                .short('E')
-                .long("regexp-extended")
-                .short_alias('r')
-                .help("Use extended regular expressions."),
-            arg!(-e --expression <SCRIPT> "Add script to executed commands.")
-                .action(clap::ArgAction::Append),
-            // Access with .get_many::<PathBuf>("file")
-            Arg::new("script-file")
-                .short('f')
-                .long("script-file")
-                .help("Specify script file.")
-                .value_parser(clap::value_parser!(PathBuf))
-                .action(clap::ArgAction::Append),
-            Arg::new("follow-symlinks")
-                .long("follow-symlinks")
-                .help("Follow symlinks when processing in place.")
-                .action(clap::ArgAction::SetTrue),
-            // Access with .get_one::<String>("in-place")
-            Arg::new("in-place")
-                .short('i')
-                .long("in-place")
-                .help("Edit files in place, making a backup if SUFFIX is supplied.")
-                .num_args(0..=1)
-                .default_missing_value(""),
-            // Access with .get_one::<u32>("line-length")
-            arg!(-l --length <NUM> "Specify the 'l' command line-wrap length.")
-                .value_parser(clap::value_parser!(u32)),
-            arg!(-n --quiet "Suppress automatic printing of pattern space.").aliases(["silent"]),
-            arg!(--posix "Disable all POSIX extensions."),
-            arg!(-s --separate "Consider files as separate rather than as a long stream."),
-            arg!(--sandbox "Operate in a sandbox by disabling e/r/w commands."),
-            arg!(-u --unbuffered "Load minimal input data and flush output buffers regularly."),
-            Arg::new("null-data")
-                .short('z')
-                .long("null-data")
-                .help("Separate lines by NUL characters.")
-                .action(clap::ArgAction::SetTrue),
         ])
 }
 

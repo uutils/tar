@@ -1,32 +1,32 @@
-# sed (uutils)
+# tar (uutils)
 # * see the repository LICENSE, README, and CONTRIBUTING files for more information
 
-# spell-checker:ignore (libs) bigdecimal datetime fundu gethostid kqueue libselinux mangen memmap sed uuhelp
+# spell-checker:ignore (libs) bigdecimal datetime fundu gethostid kqueue libselinux mangen memmap tar uuhelp
 
 [package]
-name = "sed"
+name = "tar"
 version = "0.0.1"
 authors = ["uutils developers"]
 license = "MIT"
-description = "sed ~ implemented as universal (cross-platform) utils, written in Rust"
-default-run = "sedapp"
+description = "tar ~ implemented as universal (cross-platform) utils, written in Rust"
+default-run = "tarapp"
 
-homepage = "https://github.com/uutils/sed"
-repository = "https://github.com/uutils/sed"
+homepage = "https://github.com/uutils/tar"
+repository = "https://github.com/uutils/tar"
 readme = "README.md"
-keywords = ["sed", "uutils", "cross-platform", "cli", "utility"]
+keywords = ["tar", "uutils", "cross-platform", "cli", "utility"]
 categories = ["command-line-utilities"]
-rust-version = "1.70.0"
-edition = "2021"
+rust-version = "1.85.0"
+edition = "2024"
 
 build = "build.rs"
 
 [features]
 default = ["feat_common_core"]
-uudoc = []
+uudoc = ["zip", "uuhelp_parser"]
 
 feat_common_core = [
-  "sed",
+  "tar",
 ]
 
 [workspace.dependencies]
@@ -47,6 +47,10 @@ bytesize = "2.0.0"
 chrono = { version = "0.4.37", default-features = false, features = [
   "clock",
 ] }
+ctor = "0.4.1"
+uutests = "0.2.2"
+zip = "2.1"
+uuhelp_parser = "0.0.30"
 
 [dependencies]
 clap = { workspace = true }
@@ -56,10 +60,12 @@ uucore = { workspace = true }
 phf = { workspace = true }
 textwrap = { workspace = true }
 sysinfo = { workspace = true }
+uutests = { workspace = true }
+ctor = { workspace = true }
+zip = { workspace = true, optional = true }
+uuhelp_parser = { workspace = true, optional = true }
 
-sed = { optional = true, version = "0.0.1", package = "uu_sed", path = "src/uu/sed" }
-uutests = "0.0.30"
-ctor = "0.4.1"
+tar = { optional = true, version = "0.0.1", package = "uu_tar", path = "src/uu/tar" }
 
 [dev-dependencies]
 pretty_assertions = "1"
@@ -69,6 +75,7 @@ libc = { workspace = true }
 rand = { workspace = true }
 uucore = { workspace = true, features = ["entries", "process", "signals"] }
 chrono = { workspace = true }
+uutests = { workspace = true }
 
 [target.'cfg(unix)'.dev-dependencies]
 xattr = { workspace = true }
@@ -81,8 +88,8 @@ phf_codegen = { workspace = true }
 
 
 [[bin]]
-name = "sedapp"
-path = "src/bin/sedapp.rs"
+name = "tarapp"
+path = "src/bin/tarapp.rs"
 
 [[bin]]
 name = "uudoc"

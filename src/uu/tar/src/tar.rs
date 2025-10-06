@@ -3,7 +3,7 @@
 // For the full copyright and license information, please view the LICENSE
 // file that was distributed with this source code.
 
-use clap::{arg, Arg, Command};
+use clap::{arg, Arg, Command, crate_version, ArgAction};
 use std::path::PathBuf;
 use uucore::error::UResult;
 use uucore::format_usage;
@@ -31,7 +31,10 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
 #[allow(clippy::cognitive_complexity)]
 pub fn uu_app() -> Command {
     Command::new(uucore::util_name())
+        .version(crate_version!())
         .about(ABOUT)
+        // Since -h flag is used for --dereference for some reason in GNU tar?
+        .disable_help_flag(true)
         .override_usage(format_usage(USAGE))
         .infer_long_args(true)
         .args([
@@ -52,10 +55,19 @@ pub fn uu_app() -> Command {
             // Common options
             arg!(-v --verbose "Verbosely list files processed"),
             arg!(-h --dereference "Follow symlinks"),
-            arg!(-p --preserve-permissions "Extract information about file permissions"),
-            arg!(-P --absolute-names "Don't strip leading '/' from file names"),
+            // custom long help
+            Arg::new("help").long("help").action(ArgAction::Help),
+            // arg macro has an issue with the '-' in the middle of the long args
+            Arg::new("preserve-permissions")
+                .short('p')
+                .long("preserve-permissions")
+                .action(clap::ArgAction::SetTrue),
+            Arg::new("absolute-names")
+                .short('P')
+                .long("absolute-names")
+                .action(clap::ArgAction::SetTrue),
             // Files to process
-            Arg::new("file")
+            Arg::new("files")
                 .help("Files to archive or extract")
                 .value_parser(clap::value_parser!(PathBuf))
                 .num_args(0..),

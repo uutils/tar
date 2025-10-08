@@ -67,7 +67,7 @@ struct TarHeader {
     chksum: u64,
     typeflag: TarType,
     linkname: String,
-    magic: u64,
+    magic: String,
     version: u16,
     uname: String,
     gname: String,
@@ -84,90 +84,81 @@ impl TarHeader {
                 .filter(|x| **x != 0 && x.is_ascii())
                 .map(|c| *c as char)
                 .collect::<String>(),
-            // TODO worry about endiness
-            // TODO also have to change error modes
             mode: block[offsets.mode..offsets.uid]
                 .iter()
-                .map(|x| *x as u16)
-                .rev()
-                .reduce(|acc, x| {
-                    (acc << 8) + x
-                })
+                .filter(|x| x.is_ascii_digit())
+                .map(|x| *x as char)
+                .collect::<String>()
+                .parse()
                 .unwrap_or(0),
             uid: block[offsets.uid..offsets.gid]
                 .iter()
-                //.filter(|x| **x > 0)
-                //.rev()
-                .map(|x| *x as u32)
-                .reduce(|acc, x| {
-                    acc + x
-                })
+                .filter(|x| x.is_ascii_digit())
+                .map(|x| *x as char)
+                .collect::<String>()
+                .parse()
                 .unwrap_or(0),
             gid: block[offsets.gid..offsets.size]
                 .iter()
-                .map(|x| *x as u32)
-                .reduce(|acc, x| {
-                    (acc << 8) + x
-                })
+                .filter(|x| x.is_ascii_digit())
+                .map(|x| *x as char)
+                .collect::<String>()
+                .parse()
                 .unwrap_or(0),
             size: block[offsets.size..offsets.mtime]
                 .iter()
-                .map(|x| *x as u64)
-                .reduce(|acc, x| {
-                    (acc << 8) + x
-                })
+                .filter(|x| x.is_ascii_digit())
+                .map(|x| *x as char)
+                .collect::<String>()
+                .parse()
                 .unwrap_or(0),
-            //FIXME I am for sure bit shifting wrong
+            // WARN: I dont know why yet this works with base 8
             mtime: Timestamp::from_second(
-                block[offsets.mtime..offsets.chksum]
+                i64::from_str_radix({
+                    &block[offsets.mtime..offsets.chksum]
                     .iter()
-                    .map(|x| *x as i64)
-                    .reduce(|acc, x| {
-                        if x > 0 {
-                            acc + x
-                        } else {
-                            acc + x
-                        }
-                    })
-                    .unwrap_or(0),
+                    .filter(|x| x.is_ascii_digit())
+                    .map(|x| *x as char)
+                    .collect::<String>()
+                }, 8)
+                .unwrap_or(0)
             )
             .unwrap(),
             chksum: block[offsets.chksum..offsets.typeflag]
                 .iter()
-                .map(|x| *x as u64)
-                .reduce(|acc, x| {
-                    (acc << 8) + x
-                })
+                .filter(|x| x.is_ascii_digit())
+                .map(|x| *x as char)
+                .collect::<String>()
+                .parse()
                 .unwrap_or(0),
-            //FIXME
             typeflag: TarType::try_from(
                 block[offsets.typeflag..offsets.linkname]
-                    .iter()
-                    .map(|x| *x as isize)
-                    .reduce(|acc, x| {
-                        (acc << 8) + x
-                    })
-                    .unwrap_or(0),
+                .iter()
+                .filter(|x| x.is_ascii_digit())
+                .map(|x| *x as char)
+                .collect::<String>()
+                .parse()
+                .unwrap_or(0),
             )
             .unwrap_or(TarType::Normal),
             linkname: block[offsets.linkname..offsets.magic]
                 .iter()
-                .filter(|x| **x != 0 && x.is_ascii())
-                .map(|c| *c as char)
+                .map(|x| *x as char)
+                .filter(|x| x.is_ascii() && *x != '\0')
                 .collect::<String>(),
+            // NOTE TAR spec includes a null byte at the end of the magic
+            // IVR 
             magic: block[offsets.magic..offsets.version]
                 .iter()
-                .map(|x| *x as u64)
-                .reduce(|acc, x| {
-                    (acc << 8) + x
-                })
-                .unwrap_or(0),
+                .map(|x| *x as char)
+                .filter(|x| x.is_ascii() && *x != ' ')
+                .collect::<String>(),
             version: block[offsets.version..offsets.uname]
                 .iter()
-                .map(|x| *x as u16)
-                .reduce(|acc, x| {
-                    (acc << 8) + x
-                })
+                .filter(|x| x.is_ascii_digit())
+                .map(|x| *x as char)
+                .collect::<String>()
+                .parse()
                 .unwrap_or(0),
             uname: block[offsets.uname..offsets.gname]
                 .iter()
@@ -181,17 +172,17 @@ impl TarHeader {
                 .collect::<String>(),
             devmajor: block[offsets.devmajor..offsets.devminor]
                 .iter()
-                .map(|x| *x as u64)
-                .reduce(|acc, x| {
-                    (acc << 8) + x
-                })
+                .filter(|x| x.is_ascii_digit())
+                .map(|x| *x as char)
+                .collect::<String>()
+                .parse()
                 .unwrap_or(0),
             devminor: block[offsets.devminor..offsets.prefix]
                 .iter()
-                .map(|x| *x as u64)
-                .reduce(|acc, x| {
-                    (acc << 8) + x
-                })
+                .filter(|x| x.is_ascii_digit())
+                .map(|x| *x as char)
+                .collect::<String>()
+                .parse()
                 .unwrap_or(0),
             prefix: block[offsets.prefix..offsets.end]
                 .iter()
@@ -281,59 +272,43 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
                 file_names.push(file);
             }
         }
-        read_headers(&file_names);
+        //FIXME: Dont panic return URESULT
+        read_headers(&file_names).unwrap();
     };
 
     Ok(())
 }
 
-fn read_headers(tar_files: &[&PathBuf]) -> Vec<TarHeader> {
-    // three states to notate header, data, End of archive (2 entire 512 blank blocks)
-    let mut state = (false, false);
+// TODO going to want to parse entirity of all archives and return in mem
+// rep of headers + data_ptrs for potential extraction
+fn read_headers(tar_files: &[&PathBuf]) -> Result<Vec<TarHeader>, TarError> {
     let mut headers = vec![];
+
     for file_name in tar_files {
         let mut archive = std::fs::File::open(file_name).unwrap();
         let mut file_bytes = vec![];
+        
+        // So as this is reading we have to keep in mind the size
+        // of the archive since this could potentially be huge
         archive.read_to_end(&mut file_bytes).unwrap();
-        for chunk in file_bytes.chunks(512) {
-            match state {
-                (false, false) => {
-                    // TODO error handling
-                    headers.push(TarHeader::parse(chunk).unwrap());
-                }
-                (true, false) => {
-                    let mut has_data = false;
-                    while let Some(b) = chunk.iter().next() {
-                        if b != &0_u8 {
-                            has_data = true;
+
+        let mut chunks = file_bytes.chunks(512);
+        while let Some(buf) = chunks.next() {
+            match TarHeader::parse(buf) {
+                Ok(head) => {
+                    if head.size > 0 {
+                        let data_size: usize = if head.size < 513 { 1 } else { head.size as usize / 512 };
+                        for _ in 0..data_size {
+                            chunks.next();
                         }
+                        headers.push(head);
                     }
-                    if has_data {
-                        continue;
-                    } else {
-                        state = (true, true);
-                    }
-                }
-                (true, true) => {
-                    let mut has_data = false;
-                    while let Some(b) = chunk.iter().next() {
-                        if b != &0_u8 {
-                            has_data = true;
-                        }
-                    }
-                    if has_data {
-                        // TODO replace with proper exit
-                        panic!("malformed archive")
-                    } else {
-                        state = (false, false);
-                    }
-                }
-                (_, _) => {}
-            }
+                },
+                Err(e) => return Err(e)
+            }         
         }
     }
-    println!("headers: {:?}", headers);
-    headers
+    Ok(headers)
 }
 
 #[allow(clippy::cognitive_complexity)]

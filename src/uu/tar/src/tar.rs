@@ -202,6 +202,18 @@ impl TarHeader {
         })
     }
 }
+
+#[derive(Debug)]
+struct TarArchive {
+    members: Vec<TarArchiveMember>
+}
+#[derive(Debug)]
+struct TarArchiveMember {
+    header: TarHeader,
+    header_start: usize,
+    data_start: usize
+}
+
 /// Header based on definition POSIX 1003.1-1990
 /// Adopted to in memory rust builtin types
 /// FIELD NAME    BYTE OFFSET    LENGTH (in bytes)
@@ -282,7 +294,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
                 file_names.push(file);
             }
         }
-        match read_headers(&file_names) {
+        match read_archives(&file_names) {
             Ok(h) => { println!("headers: {:#?}", h)},
             Err(e) => {println!("Error: {:#?}", e)}
         }
@@ -291,48 +303,51 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     Ok(())
 }
 
-// TODO going to want to parse entirity of all archives and return in mem
-// rep of headers + data_ptrs for potential extraction
-fn read_headers(tar_files: &[&PathBuf]) -> Result<Vec<TarHeader>, TarError> {
-    // NOTE Just here for testing
+fn read_archive(tar_file: &PathBuf) -> Result<TarArchive, TarError> {
+
     let header_size = 512;
-    let mut headers = vec![];
+    let arch_file = std::fs::File::open(tar_file).unwrap();
+    let mut arch_reader = std::io::BufReader::new(arch_file);
+    let mut empty_blocks: usize = 0;
 
-    for file_name in tar_files {
-
-        let archive = std::fs::File::open(file_name).unwrap();
-        let mut arch_reader = std::io::BufReader::new(archive);
-        let mut empty_blocks: usize = 0;
-        
-        let mut block: Vec<u8> = vec![0_u8; header_size]; 
-        while let Ok(_) = arch_reader.read_exact(block.as_mut_slice()) {
-            // should get the header then skip the file to the end of the data section
-            // to the next header
-            if !block.iter().all(|x| *x == 0){
-                match TarHeader::parse(&block[..header_size]) {
-                    Ok(head) => {
-                        // TODO: record header start offset in archive
-                        // TODO: record data start offset in archive
-                        let data_start = arch_reader.stream_position().unwrap();
-                        let header_start = data_start.saturating_sub(header_size as u64);
-                        println!("{header_start}, {data_start}");
-                        arch_reader.seek_relative(512_i64.max(head.size as i64)).unwrap();
-                        headers.push(head);
-                        empty_blocks = 0;
-                    },
-                    Err(e) => return Err(e)
-                }         
-            } else {
-                // end of archive is 2 empty blocks in a row
-                empty_blocks += 1;
-                if empty_blocks > 1 {
-                    break;
-                }
+    let mut members = vec![];
+    
+    let mut block: Vec<u8> = vec![0_u8; header_size]; 
+    while let Ok(_) = arch_reader.read_exact(block.as_mut_slice()) {
+        if !block.iter().all(|x| *x == 0){
+            match TarHeader::parse(&block[..header_size]) {
+                Ok(header) => {
+                    let current_pos = arch_reader.stream_position().unwrap() as usize;
+                    let seek_size = 512_i64.max(header.size as i64);
+                    members.push(TarArchiveMember {
+                        header,
+                        header_start: current_pos.saturating_sub(header_size),
+                        data_start: current_pos,
+                    });
+                    arch_reader.seek_relative(seek_size).unwrap();
+                    empty_blocks = 0;
+                },
+                Err(e) => return Err(e)
+            }         
+        } else {
+            // end of archive is 2 empty blocks in a row
+            empty_blocks += 1;
+            if empty_blocks > 1 {
+                break;
             }
         }
-
     }
-    Ok(headers)
+    Ok(TarArchive{ members })
+}
+
+fn read_archives(tar_files: &[&PathBuf]) -> Result<Vec<TarArchive>, TarError> {
+
+    let mut archives = vec![];
+
+    for file_name in tar_files {
+        archives.push(read_archive(file_name)?);
+    }
+    Ok(archives)
 }
 
 #[allow(clippy::cognitive_complexity)]

@@ -5,17 +5,19 @@
 
 use clap::{arg, crate_version, Arg, ArgAction, Command};
 use jiff::Timestamp;
-use std::io::Read;
+use std::io::{Read, Seek};
 use std::path::PathBuf;
 use uucore::error::UResult;
 use uucore::format_usage;
 
 const ABOUT: &str = "an archiving utility";
 const USAGE: &str = "tar {A|c|d|r|t|u|x}[GnSkUWOmpsMBiajJzZhPlRvwo] [ARG...]";
+const TAR_MAGIC: &str = "ustar";
 
 #[derive(Debug)]
 enum TarError {
     NotGood,
+    InvalidMagic
 }
 
 #[derive(Debug)]
@@ -148,11 +150,19 @@ impl TarHeader {
                 .collect::<String>(),
             // NOTE TAR spec includes a null byte at the end of the magic
             // IVR 
-            magic: block[offsets.magic..offsets.version]
+            magic: {
+                let magic_str = block[offsets.magic..offsets.version]
                 .iter()
                 .map(|x| *x as char)
                 .filter(|x| x.is_ascii() && *x != ' ')
-                .collect::<String>(),
+                .collect::<String>();
+
+                if magic_str != TAR_MAGIC {
+                    return Err(TarError::InvalidMagic)
+                }
+
+                magic_str
+            },
             version: block[offsets.version..offsets.uname]
                 .iter()
                 .filter(|x| x.is_ascii_digit())
@@ -272,8 +282,10 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
                 file_names.push(file);
             }
         }
-        //FIXME: Dont panic return URESULT
-        read_headers(&file_names).unwrap();
+        match read_headers(&file_names) {
+            Ok(h) => { println!("headers: {:#?}", h)},
+            Err(e) => {println!("Error: {:#?}", e)}
+        }
     };
 
     Ok(())
@@ -282,31 +294,43 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
 // TODO going to want to parse entirity of all archives and return in mem
 // rep of headers + data_ptrs for potential extraction
 fn read_headers(tar_files: &[&PathBuf]) -> Result<Vec<TarHeader>, TarError> {
+    // NOTE Just here for testing
+    let header_size = 512;
     let mut headers = vec![];
 
     for file_name in tar_files {
-        let mut archive = std::fs::File::open(file_name).unwrap();
-        let mut file_bytes = vec![];
-        
-        // So as this is reading we have to keep in mind the size
-        // of the archive since this could potentially be huge
-        archive.read_to_end(&mut file_bytes).unwrap();
 
-        let mut chunks = file_bytes.chunks(512);
-        while let Some(buf) = chunks.next() {
-            match TarHeader::parse(buf) {
-                Ok(head) => {
-                    if head.size > 0 {
-                        let data_size: usize = if head.size < 513 { 1 } else { head.size as usize / 512 };
-                        for _ in 0..data_size {
-                            chunks.next();
-                        }
+        let archive = std::fs::File::open(file_name).unwrap();
+        let mut arch_reader = std::io::BufReader::new(archive);
+        let mut empty_blocks: usize = 0;
+        
+        let mut block: Vec<u8> = vec![0_u8; header_size]; 
+        while let Ok(_) = arch_reader.read_exact(block.as_mut_slice()) {
+            // should get the header then skip the file to the end of the data section
+            // to the next header
+            if !block.iter().all(|x| *x == 0){
+                match TarHeader::parse(&block[..header_size]) {
+                    Ok(head) => {
+                        // TODO: record header start offset in archive
+                        // TODO: record data start offset in archive
+                        let data_start = arch_reader.stream_position().unwrap();
+                        let header_start = data_start.saturating_sub(header_size as u64);
+                        println!("{header_start}, {data_start}");
+                        arch_reader.seek_relative(512_i64.max(head.size as i64)).unwrap();
                         headers.push(head);
-                    }
-                },
-                Err(e) => return Err(e)
-            }         
+                        empty_blocks = 0;
+                    },
+                    Err(e) => return Err(e)
+                }         
+            } else {
+                // end of archive is 2 empty blocks in a row
+                empty_blocks += 1;
+                if empty_blocks > 1 {
+                    break;
+                }
+            }
         }
+
     }
     Ok(headers)
 }

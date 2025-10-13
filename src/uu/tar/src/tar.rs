@@ -4,9 +4,10 @@
 // file that was distributed with this source code.
 
 mod archive;
+mod options;
 
 use clap::{arg, crate_version, Arg, ArgAction, Command};
-use jiff::Timestamp;
+use crate::archive::{TarHeader, TarArchive, TarArchiveMember};
 use std::io::{Read, Seek};
 use std::path::PathBuf;
 use uucore::error::UResult;
@@ -14,16 +15,16 @@ use uucore::format_usage;
 
 const ABOUT: &str = "an archiving utility";
 const USAGE: &str = "tar {A|c|d|r|t|u|x}[GnSkUWOmpsMBiajJzZhPlRvwo] [ARG...]";
-const TAR_MAGIC: &str = "ustar";
+pub const TAR_MAGIC: &str = "ustar";
 
 #[derive(Debug)]
-enum TarError {
+pub enum TarError {
     NotGood,
     InvalidMagic
 }
 
 #[derive(Debug)]
-enum TarType {
+pub enum TarType {
     Normal = 0_isize,
 }
 
@@ -82,12 +83,12 @@ fn read_archive(tar_file: &PathBuf) -> Result<TarArchive, TarError> {
             match TarHeader::parse(&block[..header_size]) {
                 Ok(header) => {
                     let current_pos = arch_reader.stream_position().unwrap() as usize;
-                    let seek_size = 512_i64.max(header.size as i64);
-                    members.push(TarArchiveMember {
+                    let seek_size = 512_i64.max(header.size() as i64);
+                    members.push(TarArchiveMember::new(
                         header,
-                        header_start: current_pos.saturating_sub(header_size),
-                        data_start: current_pos,
-                    });
+                        current_pos.saturating_sub(header_size),
+                        current_pos,
+                    ));
                     arch_reader.seek_relative(seek_size).unwrap();
                     empty_blocks = 0;
                 },
@@ -101,7 +102,7 @@ fn read_archive(tar_file: &PathBuf) -> Result<TarArchive, TarError> {
             }
         }
     }
-    Ok(TarArchive{ members })
+    Ok(TarArchive::new(members))
 }
 
 fn read_archives(tar_files: &[&PathBuf]) -> Result<Vec<TarArchive>, TarError> {

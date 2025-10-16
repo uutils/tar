@@ -4,8 +4,6 @@ struct TarOptions {
 
 impl Default for TarOptions {
     fn default() -> TarOptions {
-        Self {
-            block_size: 512
-        }
+        Self { block_size: 512 }
     }
 }

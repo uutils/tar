@@ -1,22 +1,49 @@
-
-use jiff::Timestamp;
-use crate::TarType;
 use crate::TarError;
-use crate::TAR_MAGIC;
+use jiff::Timestamp;
 
+const USTAR_MAGIC: &'static str = "ustar ";
+
+#[derive(Debug)]
+pub enum TarType {
+    Normal = 0_isize,
+    HardLink = 1_isize,
+    SymbolicLink = 2_isize,
+    CharacterSpecial = 3_isize,
+    BlockSpecial = 4_isize,
+    Directory = 5_isize,
+    FIFO = 6_isize,
+    Contiguous = 7_isize,
+    ExtendedHeader = b'g' as isize,
+    ExtendedNext = b'x' as isize,
+}
+
+impl TryFrom<isize> for TarType {
+    type Error = TarError;
+    fn try_from(value: isize) -> Result<Self, Self::Error> {
+        Ok(match value {
+            0 => TarType::Normal,
+            1 => TarType::HardLink,
+            2 => TarType::SymbolicLink,
+            3 => TarType::CharacterSpecial,
+            4 => TarType::BlockSpecial,
+            5 => TarType::Directory,
+            6 => TarType::FIFO,
+            7 => TarType::Contiguous,
+            _ => return Err(TarError::NotGood),
+        })
+    }
+}
 
 /// Contains 3 values the represent the length in bytes
 /// The offset into the header according to its spec
-/// and the optional place for the value while parsing 
+/// and the optional place for the value while parsing
 /// from the builder
 #[derive(Debug)]
 struct TarMeta<T: Sized + std::fmt::Debug> {
     len: usize,
     offset: usize,
-    value: Option<T>
+    value: Option<T>,
 }
-
-
 
 // NOTE: equivelent data sizes used rust crate libc maintains typedef alias's
 // that define things like uid_t or gid_t might move these to libc since this
@@ -70,7 +97,7 @@ pub struct TarHeaderBuilder {
 }
 
 #[derive(Debug)]
-pub struct TarHeader {
+pub struct Header {
     name: String,
     mode: u16,
     uid: u32,
@@ -91,7 +118,7 @@ pub struct TarHeader {
     atime: Option<Timestamp>,
     ctime: Option<Timestamp>,
 }
-impl Default for TarHeader {
+impl Default for Header {
     fn default() -> Self {
         Self {
             name: String::from(""),
@@ -114,38 +141,132 @@ impl Default for TarHeader {
             atime: None,
             ctime: None,
         }
-    } 
+    }
 }
-impl TarHeader {
+impl Header {
     pub fn parse(block: &[u8]) -> Result<Self, TarError> {
         TarHeaderBuilder::parse(block)
     }
     pub fn size(&self) -> usize {
         self.size
     }
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+    pub fn mode(&self) -> u16 {
+        self.mode
+    }
+    pub fn uid(&self) -> u32 {
+        self.uid
+    }
+    pub fn gid(&self) -> u32 {
+        self.gid
+    }
+    pub fn mtime(&self) -> &Timestamp {
+        &self.mtime
+    }
+    pub fn chksum(&self) -> usize {
+        self.chksum
+    }
 }
 impl Default for TarHeaderBuilder {
     fn default() -> TarHeaderBuilder {
         TarHeaderBuilder {
-            name: TarMeta::<String> {len: 100, offset: 0, value: None},
-            mode: TarMeta::<u16> {len: 8, offset: 100, value: None},
-            uid: TarMeta::<u32> {len: 8, offset: 108, value: None},
-            gid: TarMeta::<u32> {len: 8, offset: 116, value: None},
-            size: TarMeta::<usize> {len: 12, offset: 124, value: None},
-            mtime: TarMeta::<Timestamp> {len: 12, offset: 136, value: None},
-            chksum: TarMeta::<usize> {len: 8, offset: 148, value: None},
-            typeflag: TarMeta::<TarType> {len: 1, offset: 156, value: None},
-            linkname: TarMeta::<String> {len: 100, offset: 157, value: None},
-            magic: TarMeta::<String> {len: 6, offset: 257, value: None},
-            version: TarMeta::<u16> {len: 2, offset: 263, value: None},
-            uname: TarMeta::<String> {len: 32, offset: 265, value: None},
-            gname: TarMeta::<String> {len: 32, offset: 297, value: None},
-            devmajor: TarMeta::<usize> {len: 8, offset: 329, value: None},
-            devminor: TarMeta::<usize> {len: 8, offset: 337, value: None},
-            prefix: TarMeta::<String> {len: 155, offset: 345, value: None},
-            star_prefix: TarMeta::<String> {len: 131, offset: 345, value: None},
-            atime: TarMeta::<Timestamp> {len: 12, offset: 476, value: None},
-            ctime: TarMeta::<Timestamp> {len: 12, offset: 488, value: None},
+            name: TarMeta::<String> {
+                len: 100,
+                offset: 0,
+                value: None,
+            },
+            mode: TarMeta::<u16> {
+                len: 8,
+                offset: 100,
+                value: None,
+            },
+            uid: TarMeta::<u32> {
+                len: 8,
+                offset: 108,
+                value: None,
+            },
+            gid: TarMeta::<u32> {
+                len: 8,
+                offset: 116,
+                value: None,
+            },
+            size: TarMeta::<usize> {
+                len: 12,
+                offset: 124,
+                value: None,
+            },
+            mtime: TarMeta::<Timestamp> {
+                len: 12,
+                offset: 136,
+                value: None,
+            },
+            chksum: TarMeta::<usize> {
+                len: 8,
+                offset: 148,
+                value: None,
+            },
+            typeflag: TarMeta::<TarType> {
+                len: 1,
+                offset: 156,
+                value: None,
+            },
+            linkname: TarMeta::<String> {
+                len: 100,
+                offset: 157,
+                value: None,
+            },
+            magic: TarMeta::<String> {
+                len: 6,
+                offset: 257,
+                value: None,
+            },
+            version: TarMeta::<u16> {
+                len: 2,
+                offset: 263,
+                value: None,
+            },
+            uname: TarMeta::<String> {
+                len: 32,
+                offset: 265,
+                value: None,
+            },
+            gname: TarMeta::<String> {
+                len: 32,
+                offset: 297,
+                value: None,
+            },
+            devmajor: TarMeta::<usize> {
+                len: 8,
+                offset: 329,
+                value: None,
+            },
+            devminor: TarMeta::<usize> {
+                len: 8,
+                offset: 337,
+                value: None,
+            },
+            prefix: TarMeta::<String> {
+                len: 155,
+                offset: 345,
+                value: None,
+            },
+            star_prefix: TarMeta::<String> {
+                len: 131,
+                offset: 345,
+                value: None,
+            },
+            atime: TarMeta::<Timestamp> {
+                len: 12,
+                offset: 476,
+                value: None,
+            },
+            ctime: TarMeta::<Timestamp> {
+                len: 12,
+                offset: 488,
+                value: None,
+            },
         }
     }
 }
@@ -155,7 +276,7 @@ impl TarHeaderBuilder {
             ..Default::default()
         }
     }
-    pub fn parse(block: &[u8]) -> Result<TarHeader, TarError> {
+    pub fn parse(block: &[u8]) -> Result<Header, TarError> {
         let mut builder = TarHeaderBuilder::new();
         builder.name.parse_field(block);
         builder.mode.parse_field(block);
@@ -166,61 +287,19 @@ impl TarHeaderBuilder {
         builder.chksum.parse_field(block);
         builder.typeflag.parse_field(block);
         builder.linkname.parse_field(block);
-        /*
-        Ok(Self {
-            magic: {
-                let magic_str = block[offsets.magic..offsets.version]
-                .iter()
-                .map(|x| *x as char)
-                .filter(|x| x.is_ascii() && *x != ' ')
-                .collect::<String>();
-
-                if magic_str != TAR_MAGIC {
-                    //return Err(TarError::InvalidMagic)
-                }
-
-                magic_str
-            },
-            version: block[offsets.version..offsets.uname]
-                .iter()
-                .filter(|x| x.is_ascii_digit())
-                .map(|x| *x as char)
-                .collect::<String>()
-                .parse()
-                .unwrap_or(0),
-            uname: block[offsets.uname..offsets.gname]
-                .iter()
-                .filter(|x| **x != 0 && x.is_ascii())
-                .map(|c| *c as char)
-                .collect::<String>(),
-            gname: block[offsets.gname..offsets.devmajor]
-                .iter()
-                .filter(|x| **x != 0 && x.is_ascii())
-                .map(|c| *c as char)
-                .collect::<String>(),
-            devmajor: block[offsets.devmajor..offsets.devminor]
-                .iter()
-                .filter(|x| x.is_ascii_digit())
-                .map(|x| *x as char)
-                .collect::<String>()
-                .parse()
-                .unwrap_or(0),
-            devminor: block[offsets.devminor..offsets.prefix]
-                .iter()
-                .filter(|x| x.is_ascii_digit())
-                .map(|x| *x as char)
-                .collect::<String>()
-                .parse()
-                .unwrap_or(0),
-            prefix: block[offsets.prefix..offsets.end]
-                .iter()
-                .filter(|x| **x != 0 && x.is_ascii())
-                .map(|c| *c as char)
-                .collect::<String>(),
-        })
-        */
-        println!("builder: {:?}", builder);
-        Ok(TarHeader {
+        builder.magic.parse_field(block);
+        builder.version.parse_field(block);
+        builder.uname.parse_field(block);
+        builder.gname.parse_field(block);
+        builder.devmajor.parse_field(block);
+        builder.devminor.parse_field(block);
+        builder.prefix.parse_field(block);
+        builder.star_prefix.parse_field(block);
+        builder.atime.parse_field(block);
+        builder.ctime.parse_field(block);
+        
+        // TODO: Must move error handling to URESULT
+        Ok(Header {
             name: builder.name.value.unwrap(),
             mode: builder.mode.value.unwrap(),
             uid: builder.uid.value.unwrap(),
@@ -230,125 +309,167 @@ impl TarHeaderBuilder {
             chksum: builder.chksum.value.unwrap(),
             typeflag: builder.typeflag.value.unwrap(),
             linkname: builder.linkname.value.unwrap(),
-            ..Default::default()   
+            magic: builder.magic.value,
+            version: builder.version.value,
+            uname: builder.uname.value,
+            gname: builder.gname.value,
+            devmajor: builder.devmajor.value,
+            devminor: builder.devminor.value,
+            prefix: builder.prefix.value,
+            star_prefix: builder.star_prefix.value,
+            atime: builder.atime.value,
+            ctime: builder.atime.value,
+            ..Default::default()
         })
     }
 }
 
 #[derive(Debug)]
-pub struct TarArchive {
-    members: Vec<TarArchiveMember>
+pub struct Archive {
+    members: Vec<Member>,
 }
-impl TarArchive {
-    pub fn new(members: Vec<TarArchiveMember>) -> Self {
+impl Archive {
+    pub fn new(members: Vec<Member>) -> Self {
         Self { members }
+    }
+    pub fn members(&self) -> &Vec<Member> {
+        &self.members
+    }
+    pub fn members_mut(&mut self) -> &mut Vec<Member> {
+        &mut self.members
     }
 }
 #[derive(Debug)]
-pub struct TarArchiveMember {
-    header: TarHeader,
+pub struct Member {
+    header: Header,
     header_start: usize,
-    data_start: usize
+    data_start: usize,
 }
-impl TarArchiveMember {
-    pub fn new(header: TarHeader, header_start: usize, data_start: usize) -> Self {
+impl Member {
+    pub fn new(header: Header, header_start: usize, data_start: usize) -> Self {
         Self {
             header,
             header_start,
-            data_start
+            data_start,
         }
     }
+    pub fn header(&self) -> &Header {
+        &self.header
+    }
+    pub fn header_mut(&mut self) -> &mut Header {
+        &mut self.header
+    }
+    pub fn header_start(&self) -> usize {
+        self.header_start
+    }
+    pub fn data_start(&self) -> usize {
+        self.data_start
+    }
 }
-
-// TarArchive
-// |
-// |-Header
-//  |-Metadata
-//      |-Member
-
+// TODO: Must convert errors to actual UUCORE URESULTS and
+// also not force the `Some()` return 100% which defeats the purpose
+// of having the non-required fields in optionals.
 trait TarParse<'i> {
     type Input;
-    fn parse_field(&mut self, val: Self::Input);    
+    fn parse_field(&mut self, val: Self::Input);
 }
 
 impl<'i> TarParse<'i> for TarMeta<String> {
     type Input = &'i [u8];
     fn parse_field(&mut self, val: Self::Input) {
-        self.value = Some(val[self.offset..self.offset+self.len].iter()
+        self.value = Some(
+            val[self.offset..self.offset + self.len]
+                .iter()
                 .filter(|x| **x != 0 && x.is_ascii())
                 .map(|c| *c as char)
-                .collect::<String>())
+                .collect::<String>(),
+        )
     }
 }
 
 impl<'i> TarParse<'i> for TarMeta<u16> {
     type Input = &'i [u8];
     fn parse_field(&mut self, val: Self::Input) {
-        self.value = Some(val[self.offset..self.offset+self.len]
-                .iter()
-                .filter(|x| x.is_ascii_digit())
-                .map(|x| *x as char)
-                .collect::<String>()
-                .parse()
-                .unwrap_or(0))
-    }
-}
-
-impl<'i> TarParse<'i> for TarMeta<u32> {
-    type Input = &'i [u8];
-    fn parse_field(&mut self, val: Self::Input) {
-        self.value = Some(val[self.offset..self.offset+self.len]
-                .iter()
-                .filter(|x| x.is_ascii_digit())
-                .map(|x| *x as char)
-                .collect::<String>()
-                .parse()
-                .unwrap_or(0))
-    }
-}
-
-impl<'i> TarParse<'i> for TarMeta<usize> {
-    type Input = &'i [u8];
-    fn parse_field(&mut self, val: Self::Input) {
-        self.value = Some(usize::from_str_radix(
-                &val[self.offset..self.offset+self.len].iter()
-                .filter(|x| **x != 0 && x.is_ascii())
-                .map(|c| *c as char)
-                .collect::<String>()
-                , 8).unwrap_or(0),)
-    }
-}
-
-impl<'i> TarParse<'i> for TarMeta<TarType> {
-    type Input = &'i [u8];
-    fn parse_field(&mut self, val: Self::Input) {
-        self.value = Some(TarType::try_from(
-                val[self.offset..self.offset+self.len]
+        self.value = Some(
+            val[self.offset..self.offset + self.len]
                 .iter()
                 .filter(|x| x.is_ascii_digit())
                 .map(|x| *x as char)
                 .collect::<String>()
                 .parse()
                 .unwrap_or(0),
+        )
+    }
+}
+
+impl<'i> TarParse<'i> for TarMeta<u32> {
+    type Input = &'i [u8];
+    fn parse_field(&mut self, val: Self::Input) {
+        self.value = Some(
+            u32::from_str_radix(
+            &val[self.offset..self.offset + self.len]
+                .iter()
+                .filter(|x| x.is_ascii_digit())
+                .map(|x| *x as char)
+                .collect::<String>()
+                , 8).unwrap_or(0)
+        )
+    }
+}
+
+impl<'i> TarParse<'i> for TarMeta<usize> {
+    type Input = &'i [u8];
+    fn parse_field(&mut self, val: Self::Input) {
+        self.value = Some(
+            usize::from_str_radix(
+                &val[self.offset..self.offset + self.len]
+                    .iter()
+                    .filter(|x| x.is_ascii_digit())
+                    .map(|c| *c as char)
+                    .collect::<String>(),
+                8,
             )
-            .unwrap_or(TarType::Normal))
+            .unwrap_or(0),
+        )
+    }
+}
+
+impl<'i> TarParse<'i> for TarMeta<TarType> {
+    type Input = &'i [u8];
+    fn parse_field(&mut self, val: Self::Input) {
+        self.value = Some(
+            TarType::try_from(
+                val[self.offset..self.offset + self.len]
+                    .iter()
+                    .filter(|x| x.is_ascii_digit())
+                    .map(|x| *x as char)
+                    .collect::<String>()
+                    .parse::<isize>()
+                    .unwrap_or(0),
+            )
+            .unwrap_or(TarType::Normal),
+        )
     }
 }
 
 impl<'i> TarParse<'i> for TarMeta<Timestamp> {
     type Input = &'i [u8];
     fn parse_field(&mut self, val: Self::Input) {
-        println!("val: {:#?}", &val[self.offset..self.offset+self.len]);
-        self.value = Some(Timestamp::from_second(
-                i64::from_str_radix({
-                    &val[self.offset..self.offset+self.len]
-                    .iter()
-                    .filter(|x| x.is_ascii_digit())
-                    .map(|x| *x as char)
-                    .collect::<String>()
-                }, 8)
-                .unwrap_or(0)
-            ).unwrap()
+        self.value = Some(
+            Timestamp::from_second(
+                i64::from_str_radix(
+                    {
+                        &val[self.offset..self.offset + self.len]
+                            .iter()
+                            .filter(|x| x.is_ascii_digit())
+                            .map(|x| *x as char)
+                            .collect::<String>()
+                    },
+                    8,
+                )
+                .unwrap_or(0),
+            )
+            .unwrap(),
         )
     }
 }

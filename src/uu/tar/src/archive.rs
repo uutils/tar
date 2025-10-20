@@ -1,7 +1,41 @@
+use std::io::{Read, Seek};
 use crate::TarError;
+use crate::operation::TarOperation;
+use crate::options::TarOptions;
+use uucore::error::{UError, UResult};
 use jiff::Timestamp;
+use std::path::PathBuf;
+use crate::util::*;
 
 const USTAR_MAGIC: &'static str = "ustar ";
+
+// create operation new type
+pub(crate) struct CreateOperation;
+
+impl TarOperation for CreateOperation {
+    fn exec(&self, options: &TarOptions) -> UResult<()> {
+       todo!()
+    }
+}
+
+/// New type to leverage from trait to produce a
+/// Vector of Archives while reading
+pub struct ArchiveList(Vec<Archive>);
+
+impl Into<Vec<Archive>> for ArchiveList {
+    fn into(self) -> Vec<Archive> {
+        self.0
+    }
+}
+
+impl IntoIterator for ArchiveList {
+    type Item = Archive;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
 
 #[derive(Debug)]
 pub enum TarType {
@@ -166,7 +200,7 @@ impl Header {
         &self.mtime
     }
     pub fn chksum(&self) -> usize {
-        self.chksum
+        self.size
     }
 }
 impl Default for TarHeaderBuilder {
@@ -328,6 +362,18 @@ impl TarHeaderBuilder {
 pub struct Archive {
     members: Vec<Member>,
 }
+impl TryFrom<&[PathBuf]> for ArchiveList {
+    type Error = Box<dyn UError + 'static>;
+    fn try_from(files: &[PathBuf]) -> UResult<ArchiveList> {
+        Archive::read_archives(files)
+    }
+}
+impl TryFrom<&PathBuf> for Archive {
+    type Error = Box<dyn UError + 'static>;
+    fn try_from(file: &PathBuf) -> UResult<Archive> { 
+        Self::read_archive(file)
+    }
+}
 impl Archive {
     pub fn new(members: Vec<Member>) -> Self {
         Self { members }
@@ -337,6 +383,84 @@ impl Archive {
     }
     pub fn members_mut(&mut self) -> &mut Vec<Member> {
         &mut self.members
+    }
+    pub fn extract_archive(tar_file: &PathBuf) -> UResult<()> {
+        let options = 2_usize.pow(30);
+        let mut archive = Self::read_archive(tar_file)?;
+        let file = std::fs::File::open(tar_file).map_err(|e| TarError::NotGood).unwrap();
+        let mut reader = std::io::BufReader::new(file);
+
+        let mut block: Vec<u8> = vec![0_u8; options];
+        while let Ok(_) = reader.read(block.as_mut_slice()) {
+            let current_seek = reader.stream_position().map_err(|_| TarError::NotGood).unwrap();
+            // offset since the buffer will be relative index
+            let read_start = current_seek.saturating_sub(options as u64);
+            for member in archive.members() {
+                let size = member.header().size(); 
+                let path = member.header();
+                let start = member.data_start();
+                let end = start + size;
+                // extract location of member file
+                //let target_location = PathBuf::from();
+            }
+        }
+
+
+
+        Ok(())
+    }
+
+
+    fn read_archive(tar_file: &PathBuf) -> UResult<Archive> {
+        // NOTE: this needs many more options to work correctly
+        // with all versions of TAR
+        let header_size = 512;
+        let arch_file = std::fs::File::open(tar_file).unwrap();
+        let mut arch_reader = std::io::BufReader::new(arch_file);
+        let mut empty_blocks: usize = 0;
+
+        let mut members = vec![];
+
+        let mut block: Vec<u8> = vec![0_u8; header_size];
+        while let Ok(_) = arch_reader.read_exact(block.as_mut_slice()) {
+            if !block.iter().all(|x| *x == 0) {
+                match Header::parse(&block[..header_size]) {
+                    Ok(header) => {
+                        let current_pos = arch_reader.stream_position().unwrap() as usize;
+                        let mut seek_size = 512_usize.max(header.size());
+                        // check 512 byte boundry
+                        if let Some(r) = seek_size.checked_rem(512).take_if(|x| *x > 0) {
+                            let pad = 512_usize.saturating_sub(r);
+                            seek_size += pad;
+                        }
+                        members.push(Member::new(
+                            header,
+                            current_pos.saturating_sub(header_size),
+                            current_pos,
+                        ));
+                        arch_reader.seek_relative(seek_size as i64).unwrap();
+                        empty_blocks = 0;
+                    }
+                    Err(e) => return Err(Box::new(e)),
+                }
+            } else {
+                // end of archive is 2 empty blocks in a row
+                empty_blocks += 1;
+                if empty_blocks > 1 {
+                    break;
+                }
+            }
+        }
+        Ok(Archive::new(members))
+    }
+
+    fn read_archives(tar_files: &[PathBuf]) -> UResult<ArchiveList> {
+        let mut archives = vec![];
+
+        for file_name in tar_files {
+            archives.push(Self::read_archive(file_name)?);
+        }
+        Ok(ArchiveList(archives))
     }
 }
 #[derive(Debug)]
@@ -364,6 +488,24 @@ impl Member {
     }
     pub fn data_start(&self) -> usize {
         self.data_start
+    }
+    pub fn print_member(&self, verbose: bool) {
+        let header = self.header();
+        let mode_str = format_perms(header.mode());
+        if verbose {
+            println!("{} {}/{} {:>11} {} {}",
+                mode_str,
+                header.uid(),
+                header.gid(),
+                header.size(),
+                header.mtime().strftime("%Y-%m-%d %H:%M"),
+                header.name()
+            );
+        }else {
+            println!("{}",
+                header.name()
+            );
+        }
     }
 }
 // TODO: Must convert errors to actual UUCORE URESULTS and

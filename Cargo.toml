@@ -35,7 +35,6 @@ clap = { version = "4.4", features = ["wrap_help", "cargo"] }
 clap_complete = "4.5"
 clap_mangen = "0.2"
 regex = "1.10.4"
-sysinfo = "0.34"
 libc = "0.2.153"
 phf = "0.13.0"
 phf_codegen = "0.11.2"
@@ -59,7 +58,6 @@ clap_mangen = { workspace = true }
 uucore = { workspace = true }
 phf = { workspace = true }
 textwrap = { workspace = true }
-sysinfo = { workspace = true }
 uutests = { workspace = true }
 ctor = { workspace = true }
 zip = { workspace = true, optional = true }

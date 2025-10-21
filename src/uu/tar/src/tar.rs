@@ -55,7 +55,7 @@ pub fn uu_app() -> Command {
             arg!(-p --"preserve-permissions" "Extract information about file permissions"),
             arg!(-P --"absolute-names" "Don't strip leading '/' from file names"),
             // Files to process
-            Arg::new("file")
+            Arg::new("files")
                 .help("Files to archive or extract")
                 .value_parser(clap::value_parser!(PathBuf))
                 .num_args(0..),

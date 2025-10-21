@@ -50,7 +50,7 @@ chrono = { version = "0.4.37", default-features = false, features = [
 ctor = "0.4.1"
 uutests = "0.2.2"
 zip = "2.1"
-uuhelp_parser = "0.0.30"
+uuhelp_parser = "0.2.0"
 
 [dependencies]
 clap = { workspace = true }

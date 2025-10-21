@@ -201,27 +201,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "chrono-tz"
-version = "0.10.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9c6ac4f2c0bf0f44e9161aec9675e1050aa4a530663c4a9e37e108fa948bca9f"
-dependencies = [
- "chrono",
- "chrono-tz-build",
- "phf",
-]
-
-[[package]]
-name = "chrono-tz-build"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e94fea34d77a245229e7746bd2beb786cd2a896f306ff491fb8cecb3074b10a7"
-dependencies = [
- "parse-zoneinfo",
- "phf_codegen",
-]
-
-[[package]]
 name = "cipher"
 version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -785,18 +764,6 @@ dependencies = [
 
 [[package]]
 name = "nix"
-version = "0.29.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "71e2746dc3a24dd78b3cfcb7be93368c6de9963d30f43a6a73998a9cf4b17b46"
-dependencies = [
- "bitflags",
- "cfg-if",
- "cfg_aliases",
- "libc",
-]
-
-[[package]]
-name = "nix"
 version = "0.30.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "74523f3a35e05aba87a1d978330aef40f67b0304ac79c1c00b294c9830543db6"
@@ -868,15 +835,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7a6229bad892b46b0dcfaaeb18ad0d2e56400f5aaea05b768bde96e73676cf75"
 dependencies = [
  "unicode-width 0.1.14",
-]
-
-[[package]]
-name = "parse-zoneinfo"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1f2a05b18d44e2957b88f96ba460715e295bc1d7510468a2f3d3b44535d26c24"
-dependencies = [
- "regex",
 ]
 
 [[package]]
@@ -1244,7 +1202,7 @@ dependencies = [
  "tempfile",
  "textwrap",
  "uu_tar",
- "uucore 0.0.30",
+ "uucore",
  "uuhelp_parser 0.0.30",
  "uutests",
  "xattr",
@@ -1418,26 +1376,7 @@ version = "0.0.1"
 dependencies = [
  "clap",
  "regex",
- "uucore 0.0.30",
-]
-
-[[package]]
-name = "uucore"
-version = "0.0.30"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "71f4e82877d06de779c611a3d54720f56f1e68b228fb30a5b6c66ef07e68263d"
-dependencies = [
- "chrono",
- "chrono-tz",
- "clap",
- "glob",
- "iana-time-zone",
- "libc",
- "nix 0.29.0",
- "number_prefix",
- "os_display",
- "uucore_procs 0.0.30",
- "wild",
+ "uucore",
 ]
 
 [[package]]
@@ -1454,25 +1393,14 @@ dependencies = [
  "fluent-syntax",
  "jiff",
  "libc",
- "nix 0.30.1",
+ "nix",
  "number_prefix",
  "os_display",
  "thiserror",
  "time",
  "unic-langid",
- "uucore_procs 0.2.2",
+ "uucore_procs",
  "wild",
-]
-
-[[package]]
-name = "uucore_procs"
-version = "0.0.30"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c72435859e812e602e225dea48d014abb6b1072220a8d44f2fe0565553b1f7e4"
-dependencies = [
- "proc-macro2",
- "quote",
- "uuhelp_parser 0.0.30",
 ]
 
 [[package]]
@@ -1506,13 +1434,13 @@ checksum = "20482dada0c118dfe1eafe971195c170c4e9ab5a2409ead9b9b1833f7a54b1d2"
 dependencies = [
  "ctor 0.5.0",
  "libc",
- "nix 0.30.1",
+ "nix",
  "pretty_assertions",
  "rand 0.9.0",
  "regex",
  "rlimit",
  "tempfile",
- "uucore 0.2.2",
+ "uucore",
  "xattr",
 ]
 

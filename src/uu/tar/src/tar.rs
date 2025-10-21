@@ -3,7 +3,7 @@
 // For the full copyright and license information, please view the LICENSE
 // file that was distributed with this source code.
 
-use clap::{arg, Arg, ArgAction, Command};
+use clap::{arg, crate_version, Arg, ArgAction, Command};
 use std::path::PathBuf;
 use uucore::error::UResult;
 use uucore::format_usage;
@@ -31,6 +31,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
 #[allow(clippy::cognitive_complexity)]
 pub fn uu_app() -> Command {
     Command::new(uucore::util_name())
+        .version(crate_version!())
         .about(ABOUT)
         .override_usage(format_usage(USAGE))
         .infer_long_args(true)

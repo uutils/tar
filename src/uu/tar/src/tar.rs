@@ -3,7 +3,7 @@
 // For the full copyright and license information, please view the LICENSE
 // file that was distributed with this source code.
 
-use clap::{arg, Arg, Command};
+use clap::{arg, crate_version, Arg, ArgAction, Command};
 use std::path::PathBuf;
 use uucore::error::UResult;
 use uucore::format_usage;
@@ -31,9 +31,11 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
 #[allow(clippy::cognitive_complexity)]
 pub fn uu_app() -> Command {
     Command::new(uucore::util_name())
+        .version(crate_version!())
         .about(ABOUT)
         .override_usage(format_usage(USAGE))
         .infer_long_args(true)
+        .disable_help_flag(true)
         .args([
             // Main operation modes
             arg!(-A --catenate "Append tar files to archive"),
@@ -52,10 +54,12 @@ pub fn uu_app() -> Command {
             // Common options
             arg!(-v --verbose "Verbosely list files processed"),
             arg!(-h --dereference "Follow symlinks"),
-            arg!(-p --preserve-permissions "Extract information about file permissions"),
-            arg!(-P --absolute-names "Don't strip leading '/' from file names"),
+            arg!(-p --"preserve-permissions" "Extract information about file permissions"),
+            arg!(-P --"absolute-names" "Don't strip leading '/' from file names"),
+            // Help
+            arg!(--help "Print help information").action(ArgAction::Help),
             // Files to process
-            Arg::new("file")
+            Arg::new("files")
                 .help("Files to archive or extract")
                 .value_parser(clap::value_parser!(PathBuf))
                 .num_args(0..),

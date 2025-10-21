@@ -52,8 +52,8 @@ pub fn uu_app() -> Command {
             // Common options
             arg!(-v --verbose "Verbosely list files processed"),
             arg!(-h --dereference "Follow symlinks"),
-            arg!(-p --preserve-permissions "Extract information about file permissions"),
-            arg!(-P --absolute-names "Don't strip leading '/' from file names"),
+            arg!(-p --"preserve-permissions" "Extract information about file permissions"),
+            arg!(-P --"absolute-names" "Don't strip leading '/' from file names"),
             // Files to process
             Arg::new("file")
                 .help("Files to archive or extract")

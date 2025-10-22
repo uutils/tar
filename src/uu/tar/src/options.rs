@@ -1,65 +1,81 @@
-use clap::ArgMatches;
-use uucore::error::UResult;
-use crate::operation::{TarOperation, Operation};
-use crate::archive::CreateOperation;
+use crate::operation::Operation;
+use crate::TarError;
+use clap::{ArgMatches, Id};
 use std::path::PathBuf;
-use crate::list::ListOperation;
+use uucore::error::UResult;
 
-/// Contains quick access to options given through the
-/// command line when calling tar
-// TODO: please come up with a different name
-// other than TarOptions...with Options
+/// [`TarOptions`] Holds common information that is parsed from 
+/// command line arguments. That changes the current execution of
+/// tar.
+// TODO: Come up with a different name
+// other than TarOptions...with Options.
+// Maybe TarParams?
+#[allow(dead_code)]
 pub struct TarOptions {
     block_size: usize,
     files: Vec<PathBuf>,
-    options: Vec<TarOption>
+    options: Vec<TarOption>,
 }
 
+/// [`Default`] Produces safe default values for options
+/// for this tar execution. Block-Size of 512 bytes, Empty vec's of 
+/// options and file names.
 impl Default for TarOptions {
     fn default() -> TarOptions {
-        Self { block_size: 512, options: Vec::new(), files: Vec::new() }
+        Self {
+            block_size: 512,
+            options: Vec::new(),
+            files: Vec::new(),
+        }
     }
 }
 
+
+// NOTE: I feel like this is just reimplmenting the parsing functionality of
+// clap
 impl From<&ArgMatches> for TarOptions {
     fn from(matches: &ArgMatches) -> TarOptions {
         let mut fp = vec![];
         let mut ops = Self::default();
-        if matches.get_flag("verbose") {
-            ops.options_mut().push(TarOption::Verbose);
-        }
-        if matches.get_flag("list") { 
-            if let Some(file) = matches.get_one::<PathBuf>("file") {
-                fp.push(file.to_owned());
-            }
-            if let Some(files) = matches.get_many::<PathBuf>("files") {
-                for file in files {
-                    fp.push(file.to_owned());
+        if let Ok(opts_option) = matches.try_get_many::<Id>("options") {
+            if let Some(opts_id) = opts_option {
+                for opt_id in opts_id {
+                    match opt_id.as_str() {
+                        "verbose" => {
+                            ops.options_mut().push(TarOption::Verbose);
+                        }
+                        "file" | "files" => {
+                            if let Some(files) = matches.get_many::<PathBuf>(opt_id.as_str()) {
+                                for file in files {
+                                    fp.push(file.to_owned());
+                                }
+                            }
+                            ops.files_mut().append(&mut fp);
+                        }
+                        _ => {}
+                    }
                 }
             }
-        };
-        ops.files_mut().append(&mut fp);
+        }
         ops
     }
 }
 
 impl TarOptions {
-    pub fn with_operation(matches: &ArgMatches) -> (Operation, Self) {
+    /// Convence method that parses the [`ArgMatches`] 
+    /// processed by clap into [`TarOptions`] and selects
+    /// the appropriate [`Operation`] for execution given back to the caller in a
+    /// tuple of ([`Operation`], [`TarOptions`])
+    pub fn with_operation(matches: &ArgMatches) -> UResult<(Operation, Self)> {
         let options = Self::from(matches);
-        // default op
-        let mut m = vec![];
-        for id in matches.ids() {
-            if let Some(_) = matches.get_raw_occurrences(id.as_str()) {
-                m.push(id.as_str()); 
-            } 
-        };
-        if let Some(arg) = m.iter().next() {
-            match *arg {
-                "list" => return (Operation::List, options),
-                _ => return (Operation::List, options)
+        if let Ok(operation) = matches.try_get_one::<Id>("operations") {
+            if let Some(o) = operation {
+                Ok((Operation::try_from(o)?, options))
+            } else {
+                Err(Box::new(TarError::NotGood))
             }
-        }else{
-            return (Operation::Create, options)
+        } else {
+            Err(Box::new(TarError::NotGood))
         }
     }
 }
@@ -79,14 +95,14 @@ impl TarOptions {
     }
 }
 
-/// Options and flags given to tar to augment the operation during calls
-/// to the tar via the command line
+/// [`TarOption`] Enum of avaliable tar options for later use
+/// by [`Operation`] impls, eg. List, Create, Delete
+#[allow(dead_code)]
 pub enum TarOption {
     AbsoluteNames,
     ACLs,
     AfterDate,
     Anchored,
     AtimePreserve { arg: String },
-    Verbose
+    Verbose,
 }
-

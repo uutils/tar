@@ -1,20 +1,25 @@
-use std::io::{Read, Seek};
-use crate::TarError;
 use crate::operation::TarOperation;
 use crate::options::TarOptions;
-use uucore::error::{UError, UResult};
-use jiff::Timestamp;
-use std::path::PathBuf;
 use crate::util::*;
+use crate::TarError;
+use jiff::Timestamp;
+use std::io::{Read, Seek};
+use std::path::PathBuf;
+use uucore::error::{UError, UResult};
 
+
+#[allow(dead_code)]
 const USTAR_MAGIC: &'static str = "ustar ";
 
 // create operation new type
+// NOTE: Might move to a new file or not I am not sure
 pub(crate) struct CreateOperation;
 
+/// [`CreateOperation`] is not impl'd
+#[allow(unused_variables)]
 impl TarOperation for CreateOperation {
     fn exec(&self, options: &TarOptions) -> UResult<()> {
-       todo!()
+        todo!()
     }
 }
 
@@ -36,8 +41,11 @@ impl IntoIterator for ArchiveList {
     }
 }
 
-
+/// [`TarType`] Enum to store selected value for the typeflag
+/// field within a [`Header`] in addition to its int value for
+/// searlization and deserialization
 #[derive(Debug)]
+#[allow(dead_code)]
 pub enum TarType {
     Normal = 0_isize,
     HardLink = 1_isize,
@@ -68,10 +76,10 @@ impl TryFrom<isize> for TarType {
     }
 }
 
-/// Contains 3 values the represent the length in bytes
-/// The offset into the header according to its spec
-/// and the optional place for the value while parsing
-/// from the builder
+/// [`TarMeta`] describes [`Header`] fields and holds its
+/// resulting parsed value to be later converted to rust types. 
+/// Allowing for the creation of a [`TarHeaderBuilder`] and subsequent
+/// [`TarParse`] impls to be used based on the data type choosen for conversion
 #[derive(Debug)]
 struct TarMeta<T: Sized + std::fmt::Debug> {
     len: usize,
@@ -79,15 +87,10 @@ struct TarMeta<T: Sized + std::fmt::Debug> {
     value: Option<T>,
 }
 
-// NOTE: equivelent data sizes used rust crate libc maintains typedef alias's
-// that define things like uid_t or gid_t might move these to libc since this
-// is self contained don't even know if it is necessary
-//
-/// Builder Struct to parse header data to hopefully make
-/// a best guess choice at possible header of archive member
+/// [`TarHeaderBuilder`] captures and stores values as [`TarMeta`]
+/// data for later conversion to a [`Header`] struct
 /// Combined Header Metadata based on definitions
 /// from v7Unix/POSIX 1003.1-1990/Star/GNU/UStar
-/// Adopted to in memory rust builtin types
 /// FIELD NAME    BYTE OFFSET    LENGTH (in bytes)
 /// name          0              100
 /// mode          100            8
@@ -130,7 +133,12 @@ pub struct TarHeaderBuilder {
     ctime: TarMeta<Timestamp>,
 }
 
+/// [`Header`] stores information of archive memebers as a
+/// result of parsing and construction of [`TarHeaderBuilder`]
+/// name, mode, uid, gid, size, mtime, chksum, typeflag, and 
+/// linkname are ubiquidous across all tar standards. 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct Header {
     name: String,
     mode: u16,
@@ -177,6 +185,7 @@ impl Default for Header {
         }
     }
 }
+#[allow(dead_code)]
 impl Header {
     pub fn parse(block: &[u8]) -> Result<Self, TarError> {
         TarHeaderBuilder::parse(block)
@@ -331,18 +340,18 @@ impl TarHeaderBuilder {
         builder.star_prefix.parse_field(block);
         builder.atime.parse_field(block);
         builder.ctime.parse_field(block);
-        
-        // TODO: Must move error handling to URESULT
+
+        // TODO: replace nOtGoOd error with something better
         Ok(Header {
-            name: builder.name.value.unwrap(),
-            mode: builder.mode.value.unwrap(),
-            uid: builder.uid.value.unwrap(),
-            gid: builder.gid.value.unwrap(),
-            size: builder.size.value.unwrap(),
-            mtime: builder.mtime.value.unwrap(),
-            chksum: builder.chksum.value.unwrap(),
-            typeflag: builder.typeflag.value.unwrap(),
-            linkname: builder.linkname.value.unwrap(),
+            name: builder.name.value.ok_or(TarError::NotGood)?,
+            mode: builder.mode.value.ok_or(TarError::NotGood)?,
+            uid: builder.uid.value.ok_or(TarError::NotGood)?,
+            gid: builder.gid.value.ok_or(TarError::NotGood)?,
+            size: builder.size.value.ok_or(TarError::NotGood)?,
+            mtime: builder.mtime.value.ok_or(TarError::NotGood)?,
+            chksum: builder.chksum.value.ok_or(TarError::NotGood)?,
+            typeflag: builder.typeflag.value.ok_or(TarError::NotGood)?,
+            linkname: builder.linkname.value.ok_or(TarError::NotGood)?,
             magic: builder.magic.value,
             version: builder.version.value,
             uname: builder.uname.value,
@@ -370,10 +379,11 @@ impl TryFrom<&[PathBuf]> for ArchiveList {
 }
 impl TryFrom<&PathBuf> for Archive {
     type Error = Box<dyn UError + 'static>;
-    fn try_from(file: &PathBuf) -> UResult<Archive> { 
+    fn try_from(file: &PathBuf) -> UResult<Archive> {
         Self::read_archive(file)
     }
 }
+#[allow(dead_code)]
 impl Archive {
     pub fn new(members: Vec<Member>) -> Self {
         Self { members }
@@ -384,32 +394,6 @@ impl Archive {
     pub fn members_mut(&mut self) -> &mut Vec<Member> {
         &mut self.members
     }
-    pub fn extract_archive(tar_file: &PathBuf) -> UResult<()> {
-        let options = 2_usize.pow(30);
-        let mut archive = Self::read_archive(tar_file)?;
-        let file = std::fs::File::open(tar_file).map_err(|e| TarError::NotGood).unwrap();
-        let mut reader = std::io::BufReader::new(file);
-
-        let mut block: Vec<u8> = vec![0_u8; options];
-        while let Ok(_) = reader.read(block.as_mut_slice()) {
-            let current_seek = reader.stream_position().map_err(|_| TarError::NotGood).unwrap();
-            // offset since the buffer will be relative index
-            let read_start = current_seek.saturating_sub(options as u64);
-            for member in archive.members() {
-                let size = member.header().size(); 
-                let path = member.header();
-                let start = member.data_start();
-                let end = start + size;
-                // extract location of member file
-                //let target_location = PathBuf::from();
-            }
-        }
-
-
-
-        Ok(())
-    }
-
 
     fn read_archive(tar_file: &PathBuf) -> UResult<Archive> {
         // NOTE: this needs many more options to work correctly
@@ -422,6 +406,7 @@ impl Archive {
         let mut members = vec![];
 
         let mut block: Vec<u8> = vec![0_u8; header_size];
+        // TODO: configure to work with variable block sizes
         while let Ok(_) = arch_reader.read_exact(block.as_mut_slice()) {
             if !block.iter().all(|x| *x == 0) {
                 match Header::parse(&block[..header_size]) {
@@ -463,12 +448,18 @@ impl Archive {
         Ok(ArchiveList(archives))
     }
 }
+/// [`Member`] An Archive Member is the indivdual file listing
+/// an a tar archive and the [`Member`] struct encapsulates the
+/// associated parsed [`Header`] and byte offsets for reading and
+/// writing data into an archive.
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct Member {
     header: Header,
     header_start: usize,
     data_start: usize,
 }
+#[allow(dead_code)]
 impl Member {
     pub fn new(header: Header, header_start: usize, data_start: usize) -> Self {
         Self {
@@ -493,7 +484,8 @@ impl Member {
         let header = self.header();
         let mode_str = format_perms(header.mode());
         if verbose {
-            println!("{} {}/{} {:>11} {} {}",
+            println!(
+                "{} {}/{} {:>11} {} {}",
                 mode_str,
                 header.uid(),
                 header.gid(),
@@ -501,16 +493,16 @@ impl Member {
                 header.mtime().strftime("%Y-%m-%d %H:%M"),
                 header.name()
             );
-        }else {
-            println!("{}",
-                header.name()
-            );
+        } else {
+            println!("{}", header.name());
         }
     }
 }
 // TODO: Must convert errors to actual UUCORE URESULTS and
 // also not force the `Some()` return 100% which defeats the purpose
 // of having the non-required fields in optionals.
+/// [`TarParse`] allows per input type parsing to be defined based on
+/// [`Header`] output data type being requested.
 trait TarParse<'i> {
     type Input;
     fn parse_field(&mut self, val: Self::Input);
@@ -549,12 +541,14 @@ impl<'i> TarParse<'i> for TarMeta<u32> {
     fn parse_field(&mut self, val: Self::Input) {
         self.value = Some(
             u32::from_str_radix(
-            &val[self.offset..self.offset + self.len]
-                .iter()
-                .filter(|x| x.is_ascii_digit())
-                .map(|x| *x as char)
-                .collect::<String>()
-                , 8).unwrap_or(0)
+                &val[self.offset..self.offset + self.len]
+                    .iter()
+                    .filter(|x| x.is_ascii_digit())
+                    .map(|x| *x as char)
+                    .collect::<String>(),
+                8,
+            )
+            .unwrap_or(0),
         )
     }
 }

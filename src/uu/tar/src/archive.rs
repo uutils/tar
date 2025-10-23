@@ -215,6 +215,12 @@ impl Header {
     pub fn mtime_zoned(&self) -> Zoned {
         Zoned::new(self.mtime, TimeZone::system())
     }
+    pub fn uname(&self) -> Option<&String> {
+        self.uname.as_ref()
+    }
+    pub fn gname(&self) -> Option<&String> {
+        self.gname.as_ref()
+    }
     pub fn chksum(&self) -> usize {
         self.size
     }

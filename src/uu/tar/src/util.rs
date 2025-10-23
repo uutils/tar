@@ -17,7 +17,7 @@ pub fn format_perms(mode: u16) -> String {
 }
 /// Writes to a supplied buffer the char representation of a
 /// single standard linux octal permission (eg. 0..|7|..44)
-// feeding the mutable buffer in allows default characters to 
+// feeding the mutable buffer in allows default characters to
 // added by the caller
 pub fn mode_octal_to_string(mode: u16, buf: &mut [char]) {
     // example 644

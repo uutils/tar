@@ -2,7 +2,6 @@
 //
 // For the full copyright and license information, please view the LICENSE
 // file that was distributed with this source code.
-
 mod archive;
 mod list;
 mod operation;
@@ -26,7 +25,8 @@ const USAGE: &str = "tar {A|c|d|r|t|u|x}[GnSkUWOmpsMBiajJzZhPlRvwo] [ARG...]";
 pub enum TarError {
     NotGood,
     InvalidMagic,
-    InvalidOperation(String)
+    InvalidOperation(String),
+    ParseError,
 }
 
 impl Display for TarError {
@@ -34,7 +34,10 @@ impl Display for TarError {
         match self {
             TarError::NotGood => f.write_str("TarError: Not Good...This will be replaced later"),
             TarError::InvalidMagic => f.write_str("TarError: Invalid Magic"),
-            TarError::InvalidOperation(m) => f.write_str(&format!("TarError: Invalid Operation: {}", m)),
+            TarError::InvalidOperation(m) => {
+                f.write_str(&format!("TarError: Invalid Operation: {}", m))
+            }
+            TarError::ParseError => f.write_str("TarError: ParseError"),
         }
     }
 }
@@ -43,7 +46,10 @@ impl Debug for TarError {
         match self {
             TarError::NotGood => f.write_str("TarError: Not Good...This will be replaced later"),
             TarError::InvalidMagic => f.write_str("TarError: Invalid Magic"),
-            TarError::InvalidOperation(m) => f.write_str(&format!("TarError: Invalid Operation: {}", m)),
+            TarError::InvalidOperation(m) => {
+                f.write_str(&format!("TarError: Invalid Operation: {}", m))
+            }
+            TarError::ParseError => f.write_str("TarError: ParseError"),
         }
     }
 }
@@ -54,13 +60,11 @@ impl UError for TarError {}
 
 #[uucore::main]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
-
     let matches = uu_app().try_get_matches_from(args)?;
 
     let (op, options) = TarOptions::with_operation(&matches)?;
 
     op.exec(&options)
-
 }
 
 // Commands are grouped to derive "Areas" of tar execution.
@@ -95,7 +99,10 @@ pub fn uu_app() -> Command {
                 .alias("get")
                 .group("operations"),
             // Archive file
-            arg!(-f --file <ARCHIVE> "Use archive file")
+            Arg::new("archive")
+                .long("file")
+                .short('f')
+                .help("Use archive file")
                 .value_parser(clap::value_parser!(PathBuf))
                 .group("options"),
             // Compression options

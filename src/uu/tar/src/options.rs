@@ -4,7 +4,7 @@ use clap::{ArgMatches, Id};
 use std::path::PathBuf;
 use uucore::error::UResult;
 
-/// [`TarOptions`] Holds common information that is parsed from 
+/// [`TarOptions`] Holds common information that is parsed from
 /// command line arguments. That changes the current execution of
 /// tar.
 // TODO: Come up with a different name
@@ -13,23 +13,24 @@ use uucore::error::UResult;
 #[allow(dead_code)]
 pub struct TarOptions {
     block_size: usize,
+    archive: PathBuf,
     files: Vec<PathBuf>,
     options: Vec<TarOption>,
 }
 
 /// [`Default`] Produces safe default values for options
-/// for this tar execution. Block-Size of 512 bytes, Empty vec's of 
+/// for this tar execution. Block-Size of 512 bytes, Empty vec's of
 /// options and file names.
 impl Default for TarOptions {
     fn default() -> TarOptions {
         Self {
             block_size: 512,
+            archive: PathBuf::default(),
             options: Vec::new(),
             files: Vec::new(),
         }
     }
 }
-
 
 // NOTE: I feel like this is just reimplmenting the parsing functionality of
 // clap
@@ -44,13 +45,18 @@ impl From<&ArgMatches> for TarOptions {
                         "verbose" => {
                             ops.options_mut().push(TarOption::Verbose);
                         }
-                        "file" | "files" => {
+                        "files" => {
                             if let Some(files) = matches.get_many::<PathBuf>(opt_id.as_str()) {
                                 for file in files {
                                     fp.push(file.to_owned());
                                 }
                             }
                             ops.files_mut().append(&mut fp);
+                        }
+                        "archive" => {
+                            if let Some(a) = matches.get_one::<PathBuf>(opt_id.as_str()) {
+                                ops.archive = a.to_owned();
+                            }
                         }
                         _ => {}
                     }
@@ -62,7 +68,7 @@ impl From<&ArgMatches> for TarOptions {
 }
 
 impl TarOptions {
-    /// Convence method that parses the [`ArgMatches`] 
+    /// Convence method that parses the [`ArgMatches`]
     /// processed by clap into [`TarOptions`] and selects
     /// the appropriate [`Operation`] for execution given back to the caller in a
     /// tuple of ([`Operation`], [`TarOptions`])
@@ -86,6 +92,12 @@ impl TarOptions {
     }
     pub fn files_mut(&mut self) -> &mut Vec<PathBuf> {
         &mut self.files
+    }
+    pub fn archive(&self) -> &PathBuf {
+        &self.archive
+    }
+    pub fn archive_mut(&mut self) -> &mut PathBuf {
+        &mut self.archive
     }
     pub fn options(&self) -> &Vec<TarOption> {
         &self.options

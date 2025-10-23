@@ -2,11 +2,11 @@ use crate::operation::TarOperation;
 use crate::options::TarOptions;
 use crate::util::*;
 use crate::TarError;
-use jiff::Timestamp;
+use jiff::tz::TimeZone;
+use jiff::{Timestamp, Zoned};
 use std::io::{Read, Seek};
 use std::path::PathBuf;
 use uucore::error::{UError, UResult};
-
 
 #[allow(dead_code)]
 const USTAR_MAGIC: &'static str = "ustar ";
@@ -77,7 +77,7 @@ impl TryFrom<isize> for TarType {
 }
 
 /// [`TarMeta`] describes [`Header`] fields and holds its
-/// resulting parsed value to be later converted to rust types. 
+/// resulting parsed value to be later converted to rust types.
 /// Allowing for the creation of a [`TarHeaderBuilder`] and subsequent
 /// [`TarParse`] impls to be used based on the data type choosen for conversion
 #[derive(Debug)]
@@ -135,8 +135,8 @@ pub struct TarHeaderBuilder {
 
 /// [`Header`] stores information of archive memebers as a
 /// result of parsing and construction of [`TarHeaderBuilder`]
-/// name, mode, uid, gid, size, mtime, chksum, typeflag, and 
-/// linkname are ubiquidous across all tar standards. 
+/// name, mode, uid, gid, size, mtime, chksum, typeflag, and
+/// linkname are ubiquidous across all tar standards.
 #[derive(Debug)]
 #[allow(dead_code)]
 pub struct Header {
@@ -207,6 +207,13 @@ impl Header {
     }
     pub fn mtime(&self) -> &Timestamp {
         &self.mtime
+    }
+    // convience method to create a locale zoned
+    // time stamp for display. C tar does no conversion
+    // of time and the tar file format timestamp local unix epoch
+    // time with no information included
+    pub fn mtime_zoned(&self) -> Zoned {
+        Zoned::new(self.mtime, TimeZone::system())
     }
     pub fn chksum(&self) -> usize {
         self.size
@@ -490,7 +497,7 @@ impl Member {
                 header.uid(),
                 header.gid(),
                 header.size(),
-                header.mtime().strftime("%Y-%m-%d %H:%M"),
+                header.mtime_zoned().strftime("%Y-%m-%d %H:%M"),
                 header.name()
             );
         } else {

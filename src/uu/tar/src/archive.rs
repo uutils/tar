@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use uucore::error::{UError, UResult};
 
 #[allow(dead_code)]
-const USTAR_MAGIC: &'static str = "ustar ";
+const USTAR_MAGIC: &str = "ustar ";
 
 // create operation new type
 // NOTE: Might move to a new file or not I am not sure
@@ -27,9 +27,9 @@ impl TarOperation for CreateOperation {
 /// Vector of Archives while reading
 pub struct ArchiveList(Vec<Archive>);
 
-impl Into<Vec<Archive>> for ArchiveList {
-    fn into(self) -> Vec<Archive> {
-        self.0
+impl From<ArchiveList> for Vec<Archive> {
+    fn from(val: ArchiveList) -> Self {
+        val.0
     }
 }
 
@@ -208,7 +208,7 @@ impl Header {
     pub fn mtime(&self) -> &Timestamp {
         &self.mtime
     }
-    // convience method to create a locale zoned
+    // convience method to create a local zoned
     // time stamp for display. C tar does no conversion
     // of time and the tar file format timestamp local unix epoch
     // time with no information included
@@ -222,7 +222,7 @@ impl Header {
         self.gname.as_ref()
     }
     pub fn chksum(&self) -> usize {
-        self.size
+        self.chksum
     }
 }
 impl Default for TarHeaderBuilder {
@@ -375,7 +375,6 @@ impl TarHeaderBuilder {
             star_prefix: builder.star_prefix.value,
             atime: builder.atime.value,
             ctime: builder.atime.value,
-            ..Default::default()
         })
     }
 }
@@ -420,7 +419,7 @@ impl Archive {
 
         let mut block: Vec<u8> = vec![0_u8; header_size];
         // TODO: configure to work with variable block sizes
-        while let Ok(_) = arch_reader.read_exact(block.as_mut_slice()) {
+        while arch_reader.read_exact(block.as_mut_slice()).is_ok() {
             if !block.iter().all(|x| *x == 0) {
                 match Header::parse(&block[..header_size]) {
                     Ok(header) => {
@@ -497,6 +496,7 @@ impl Member {
         let header = self.header();
         let mode_str = format_perms(header.mode());
         if verbose {
+            // TODO: this is not the way...
             println!(
                 "{} {}/{} {:>11} {} {}",
                 mode_str,

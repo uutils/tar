@@ -1,4 +1,4 @@
-use crate::archive::{Archive, ArchiveList};
+use crate::archive::Archive;
 use crate::operation::TarOperation;
 use crate::options::{TarOption, TarOptions};
 use uucore::error::UResult;
@@ -10,10 +10,7 @@ impl TarOperation for ListOperation {
         // TODO: I think there is some sort of option to list a
         // particular member
         let archive = Archive::try_from(options.archive())?;
-        let verbose = options.options().iter().any(|x| match x {
-            TarOption::Verbose => true,
-            _ => false,
-        });
+        let verbose = options.options().iter().any(|x| matches!(x, TarOption::Verbose));
         for member in archive.members() {
             member.print_member(verbose);
         }

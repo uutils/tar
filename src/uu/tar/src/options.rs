@@ -38,28 +38,26 @@ impl From<&ArgMatches> for TarOptions {
     fn from(matches: &ArgMatches) -> TarOptions {
         let mut fp = vec![];
         let mut ops = Self::default();
-        if let Ok(opts_option) = matches.try_get_many::<Id>("options") {
-            if let Some(opts_id) = opts_option {
-                for opt_id in opts_id {
-                    match opt_id.as_str() {
-                        "verbose" => {
-                            ops.options_mut().push(TarOption::Verbose);
-                        }
-                        "files" => {
-                            if let Some(files) = matches.get_many::<PathBuf>(opt_id.as_str()) {
-                                for file in files {
-                                    fp.push(file.to_owned());
-                                }
-                            }
-                            ops.files_mut().append(&mut fp);
-                        }
-                        "archive" => {
-                            if let Some(a) = matches.get_one::<PathBuf>(opt_id.as_str()) {
-                                ops.archive = a.to_owned();
-                            }
-                        }
-                        _ => {}
+        if let Ok(Some(opts_id)) = matches.try_get_many::<Id>("options") {
+            for opt_id in opts_id {
+                match opt_id.as_str() {
+                    "verbose" => {
+                        ops.options_mut().push(TarOption::Verbose);
                     }
+                    "files" => {
+                        if let Some(files) = matches.get_many::<PathBuf>(opt_id.as_str()) {
+                            for file in files {
+                                fp.push(file.to_owned());
+                            }
+                        }
+                        ops.files_mut().append(&mut fp);
+                    }
+                    "archive" => {
+                        if let Some(a) = matches.get_one::<PathBuf>(opt_id.as_str()) {
+                            ops.archive = a.to_owned();
+                        }
+                    }
+                    _ => {}
                 }
             }
         }
@@ -74,12 +72,8 @@ impl TarOptions {
     /// tuple of ([`Operation`], [`TarOptions`])
     pub fn with_operation(matches: &ArgMatches) -> UResult<(Operation, Self)> {
         let options = Self::from(matches);
-        if let Ok(operation) = matches.try_get_one::<Id>("operations") {
-            if let Some(o) = operation {
-                Ok((Operation::try_from(o)?, options))
-            } else {
-                Err(Box::new(TarError::NotGood))
-            }
+        if let Ok(Some(o)) = matches.try_get_one::<Id>("operations") {
+            Ok((Operation::try_from(o)?, options))
         } else {
             Err(Box::new(TarError::NotGood))
         }

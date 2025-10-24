@@ -22,14 +22,14 @@ impl TryFrom<&Id> for Operation {
     type Error = TarError;
     fn try_from(value: &Id) -> Result<Self, Self::Error> {
         match value.as_str() {
-            "concate" => return Ok(Self::Concatenate),
-            "create" => return Ok(Self::Create),
-            "diff" => return Ok(Self::Diff),
-            "list" => return Ok(Self::List),
-            "append" => return Ok(Self::Append),
-            "update" => return Ok(Self::Update),
-            "extract" => return Ok(Self::Extract),
-            _ => return Err(TarError::InvalidOperation(value.to_string())),
+            "concate" => Ok(Self::Concatenate),
+            "create" => Ok(Self::Create),
+            "diff" => Ok(Self::Diff),
+            "list" => Ok(Self::List),
+            "append" => Ok(Self::Append),
+            "update" => Ok(Self::Update),
+            "extract" =>Ok(Self::Extract),
+            _ => Err(TarError::InvalidOperation(value.to_string())),
         }
     }
 }

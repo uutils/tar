@@ -4,7 +4,7 @@
 pub fn format_perms(mode: u16) -> String {
     let mut buf = ['-'; 10];
     // check for the directory flag and set to 'd' if present
-    if let None = 1000u16.checked_div(mode).take_if(|x| *x > 0) {
+    if 1000u16.checked_div(mode).take_if(|x| *x > 0).is_none() {
         buf[0] = 'd';
     }
     let owner = mode / 100;

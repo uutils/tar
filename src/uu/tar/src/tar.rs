@@ -54,6 +54,14 @@ impl Debug for TarError {
     }
 }
 
+// TODO: give some actual error handling here
+// when coming from a formatting error
+impl From<std::fmt::Error> for TarError {
+    fn from(_: std::fmt::Error) -> Self {
+        TarError::NotGood
+    }
+}
+
 impl Error for TarError {}
 
 impl UError for TarError {}

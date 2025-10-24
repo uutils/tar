@@ -2,11 +2,13 @@ use crate::operation::TarOperation;
 use crate::options::TarOptions;
 use crate::util::*;
 use crate::TarError;
+use std::fmt::Write;
 use jiff::tz::TimeZone;
 use jiff::{Timestamp, Zoned};
 use std::io::{Read, Seek};
 use std::path::PathBuf;
 use uucore::error::{UError, UResult};
+
 
 #[allow(dead_code)]
 const USTAR_MAGIC: &str = "ustar ";
@@ -46,6 +48,7 @@ impl IntoIterator for ArchiveList {
 /// searlization and deserialization
 #[derive(Debug)]
 #[allow(dead_code)]
+#[allow(clippy::upper_case_acronyms)]
 pub enum TarType {
     Normal = 0_isize,
     HardLink = 1_isize,
@@ -492,23 +495,52 @@ impl Member {
     pub fn data_start(&self) -> usize {
         self.data_start
     }
-    pub fn print_member(&self, verbose: bool) {
+    pub fn print_member(&self, verbose: bool) -> UResult<()> {
         let header = self.header();
-        let mode_str = format_perms(header.mode());
+        let mut line_to_print = String::new();
+
         if verbose {
-            // TODO: this is not the way...
-            println!(
-                "{} {}/{} {:>11} {} {}",
-                mode_str,
-                header.uid(),
-                header.gid(),
-                header.size(),
+
+            let perm_str = format_perms(header.mode());
+            // select to use the username/groupname string or uid/gid 
+            let (u_val, g_val) = if let (Some(un), Some(gn)) = (header.uname(), header.gname()){
+                if !un.is_empty() && !gn.is_empty() { 
+                    (un.to_owned(), gn.to_owned())
+                } else {
+                    (header.uid().to_string(), header.gid().to_string())
+                }
+            } else {
+                (header.uid().to_string(), header.gid().to_string())
+            };
+            // UNIX tar has this as the minimum size of the Username/id Groupname/id + size
+            // section of a listing the anything under 19 is padded over 19 grows and gets
+            // padded with 1 space
+            // Something in me feels like this could overflow stdout some how?
+            let ugs_size:usize = 19;
+            let pad = ugs_size.saturating_sub(u_val.len() + 1
+                + g_val.len() + 1 +
+                header.size().to_string().len());
+            let mut pad_string = String::new(); 
+            // pad with spaces
+            for _ in 0..pad+1 {
+                pad_string.push(' ');
+            }
+            // construct the combo string with padding
+            let ugs = format!("{}/{}{}{}", u_val, g_val, pad_string, header.size());
+
+            write!(&mut line_to_print,
+                "{} {} {} {}",
+                perm_str,
+                ugs,
                 header.mtime_zoned().strftime("%Y-%m-%d %H:%M"),
                 header.name()
-            );
+            ).map_err(TarError::from)?;
         } else {
-            println!("{}", header.name());
+            write!(&mut line_to_print, "{}", header.name()).map_err(TarError::from)?;
         }
+        // print string buffer
+        println!("{}", line_to_print);
+        Ok(())
     }
 }
 // TODO: Must convert errors to actual UUCORE URESULTS and

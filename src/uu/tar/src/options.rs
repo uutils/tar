@@ -80,6 +80,7 @@ impl TarOptions {
     }
 }
 
+#[allow(dead_code)]
 impl TarOptions {
     pub fn files(&self) -> &Vec<PathBuf> {
         &self.files

@@ -28,7 +28,7 @@ impl TryFrom<&Id> for Operation {
             "list" => Ok(Self::List),
             "append" => Ok(Self::Append),
             "update" => Ok(Self::Update),
-            "extract" =>Ok(Self::Extract),
+            "extract" => Ok(Self::Extract),
             _ => Err(TarError::InvalidOperation(value.to_string())),
         }
     }

@@ -2,13 +2,12 @@ use crate::operation::TarOperation;
 use crate::options::TarOptions;
 use crate::util::*;
 use crate::TarError;
-use std::fmt::Write;
 use jiff::tz::TimeZone;
 use jiff::{Timestamp, Zoned};
+use std::fmt::Write;
 use std::io::{Read, Seek};
 use std::path::PathBuf;
 use uucore::error::{UError, UResult};
-
 
 #[allow(dead_code)]
 const USTAR_MAGIC: &str = "ustar ";
@@ -166,7 +165,7 @@ pub struct Header {
 impl Default for Header {
     fn default() -> Self {
         Self {
-            name: String::from(""),
+            name: String::new(),
             mode: 0u16,
             uid: 0u32,
             gid: 0u32,
@@ -174,7 +173,7 @@ impl Default for Header {
             mtime: Timestamp::default(),
             chksum: 0usize,
             typeflag: TarType::Normal,
-            linkname: String::from(""),
+            linkname: String::new(),
             magic: None,
             version: None,
             uname: None,
@@ -500,11 +499,10 @@ impl Member {
         let mut line_to_print = String::new();
 
         if verbose {
-
             let perm_str = format_perms(header.mode());
-            // select to use the username/groupname string or uid/gid 
-            let (u_val, g_val) = if let (Some(un), Some(gn)) = (header.uname(), header.gname()){
-                if !un.is_empty() && !gn.is_empty() { 
+            // select to use the username/groupname string or uid/gid
+            let (u_val, g_val) = if let (Some(un), Some(gn)) = (header.uname(), header.gname()) {
+                if !un.is_empty() && !gn.is_empty() {
                     (un.to_owned(), gn.to_owned())
                 } else {
                     (header.uid().to_string(), header.gid().to_string())
@@ -516,25 +514,27 @@ impl Member {
             // section of a listing the anything under 19 is padded over 19 grows and gets
             // padded with 1 space
             // Something in me feels like this could overflow stdout some how?
-            let ugs_size:usize = 19;
-            let pad = ugs_size.saturating_sub(u_val.len() + 1
-                + g_val.len() + 1 +
-                header.size().to_string().len());
-            let mut pad_string = String::new(); 
+            let ugs_size: usize = 19;
+            let pad = ugs_size.saturating_sub(
+                u_val.len() + 1 + g_val.len() + 1 + header.size().to_string().len(),
+            );
+            let mut pad_string = String::new();
             // pad with spaces
-            for _ in 0..pad+1 {
+            for _ in 0..=pad {
                 pad_string.push(' ');
             }
             // construct the combo string with padding
             let ugs = format!("{}/{}{}{}", u_val, g_val, pad_string, header.size());
 
-            write!(&mut line_to_print,
+            write!(
+                &mut line_to_print,
                 "{} {} {} {}",
                 perm_str,
                 ugs,
                 header.mtime_zoned().strftime("%Y-%m-%d %H:%M"),
                 header.name()
-            ).map_err(TarError::from)?;
+            )
+            .map_err(TarError::from)?;
         } else {
             write!(&mut line_to_print, "{}", header.name()).map_err(TarError::from)?;
         }
@@ -562,7 +562,7 @@ impl<'i> TarParse<'i> for TarMeta<String> {
                 .filter(|x| **x != 0 && x.is_ascii())
                 .map(|c| *c as char)
                 .collect::<String>(),
-        )
+        );
     }
 }
 
@@ -577,7 +577,7 @@ impl<'i> TarParse<'i> for TarMeta<u16> {
                 .collect::<String>()
                 .parse()
                 .unwrap_or(0),
-        )
+        );
     }
 }
 
@@ -594,7 +594,7 @@ impl<'i> TarParse<'i> for TarMeta<u32> {
                 8,
             )
             .unwrap_or(0),
-        )
+        );
     }
 }
 
@@ -611,7 +611,7 @@ impl<'i> TarParse<'i> for TarMeta<usize> {
                 8,
             )
             .unwrap_or(0),
-        )
+        );
     }
 }
 
@@ -629,7 +629,7 @@ impl<'i> TarParse<'i> for TarMeta<TarType> {
                     .unwrap_or(0),
             )
             .unwrap_or(TarType::Normal),
-        )
+        );
     }
 }
 
@@ -651,6 +651,6 @@ impl<'i> TarParse<'i> for TarMeta<Timestamp> {
                 .unwrap_or(0),
             )
             .unwrap(),
-        )
+        );
     }
 }

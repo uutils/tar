@@ -71,6 +71,7 @@ libc = { workspace = true }
 pretty_assertions = "1"
 rand = { workspace = true }
 regex = { workspace = true }
+tar-rs-crate = { version = "0.4", package = "tar" }
 tempfile = { workspace = true }
 uucore = { workspace = true, features = ["entries", "process", "signals"] }
 uutests = { workspace = true }

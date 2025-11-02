@@ -415,6 +415,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "37909eebbb50d72f9059c3b6d82c0463f2ff062c9e95845c43a6c9c0355411be"
 
 [[package]]
+name = "filetime"
+version = "0.2.26"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bc0505cd1b6fa6580283f6bdf70a73fcf4aba1184038c90902b92b3dd0df63ed"
+dependencies = [
+ "cfg-if",
+ "libc",
+ "libredox",
+ "windows-sys 0.60.2",
+]
+
+[[package]]
 name = "flate2"
 version = "1.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -664,6 +676,17 @@ name = "libc"
 version = "0.2.177"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2874a2af47a2325c2001a6e6fad9b16a53b802102b528163885171cf92b15976"
+
+[[package]]
+name = "libredox"
+version = "0.1.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "416f7e718bdb06000964960ffa43b4335ad4012ae8b99060261aa4a8088d5ccb"
+dependencies = [
+ "bitflags",
+ "libc",
+ "redox_syscall",
+]
 
 [[package]]
 name = "libz-rs-sys"
@@ -947,6 +970,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "redox_syscall"
+version = "0.5.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ed2bf2547551a7053d6fdfafda3f938979645c44812fbfcda098faae3f1a362d"
+dependencies = [
+ "bitflags",
+]
+
+[[package]]
 name = "regex"
 version = "1.12.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1142,6 +1174,7 @@ dependencies = [
  "rand",
  "regex",
  "rlimit",
+ "tar 0.4.44",
  "tempfile",
  "textwrap",
  "uu_tar",
@@ -1150,6 +1183,15 @@ dependencies = [
  "uutests",
  "xattr",
  "zip",
+]
+
+[[package]]
+name = "tar"
+version = "0.4.44"
+dependencies = [
+ "filetime",
+ "libc",
+ "xattr",
 ]
 
 [[package]]
@@ -1319,6 +1361,7 @@ version = "0.0.1"
 dependencies = [
  "clap",
  "regex",
+ "tar 0.4.44",
  "uucore",
 ]
 

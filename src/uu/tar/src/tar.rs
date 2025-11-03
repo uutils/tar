@@ -72,6 +72,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     ))
 }
 
+#[allow(clippy::cognitive_complexity)]
 pub fn uu_app() -> Command {
     Command::new(uucore::util_name())
         .version(crate_version!())

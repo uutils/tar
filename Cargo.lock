@@ -1145,7 +1145,7 @@ dependencies = [
  "tempfile",
  "textwrap",
  "uu_tar",
- "uucore",
+ "uucore 0.3.0",
  "uuhelp_parser",
  "uutests",
  "xattr",
@@ -1319,7 +1319,7 @@ version = "0.0.1"
 dependencies = [
  "clap",
  "regex",
- "uucore",
+ "uucore 0.3.0",
 ]
 
 [[package]]
@@ -1327,6 +1327,29 @@ name = "uucore"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f9ca78fd510306bcb8c1c2a37142bc661679d19a53140804493e27107421bff1"
+dependencies = [
+ "bstr",
+ "clap",
+ "fluent",
+ "fluent-bundle",
+ "fluent-syntax",
+ "libc",
+ "nix",
+ "number_prefix",
+ "os_display",
+ "phf",
+ "procfs",
+ "thiserror",
+ "unic-langid",
+ "uucore_procs 0.3.0",
+ "wild",
+]
+
+[[package]]
+name = "uucore"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2003164a38a7f39da1de103a70fa66b745f572f0045ec261481539516c0a8a0e"
 dependencies = [
  "bstr",
  "clap",
@@ -1344,7 +1367,7 @@ dependencies = [
  "thiserror",
  "time",
  "unic-langid",
- "uucore_procs",
+ "uucore_procs 0.4.0",
  "wild",
 ]
 
@@ -1359,6 +1382,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "uucore_procs"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c76f0308f7810d915246a39748e7f5d64e43e6bb9d6c8107224f9d741aefc375"
+dependencies = [
+ "proc-macro2",
+ "quote",
+]
+
+[[package]]
 name = "uuhelp_parser"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1366,9 +1399,9 @@ checksum = "9c9e4945611996e885dc4eeae23f3d6f20cfb6e8f4bad4985c2222bbcf9a9745"
 
 [[package]]
 name = "uutests"
-version = "0.3.0"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8f29cceeb969f84e0663827b15c96897b9e1f8bb2b999fa03cfd1e4cfbf4a8e9"
+checksum = "8c46a1280b9aa25715b918f1d5fb52da79f7664fba3477b276b6475f4e207dda"
 dependencies = [
  "ctor",
  "libc",
@@ -1378,7 +1411,7 @@ dependencies = [
  "regex",
  "rlimit",
  "tempfile",
- "uucore",
+ "uucore 0.4.0",
  "xattr",
 ]
 

@@ -4,10 +4,21 @@
 // file that was distributed with this source code.
 
 use crate::errors::TarError;
+use crate::operations::operation::TarOperation;
+use crate::options::options::{TarOptions, TarOption};
+use std::path::PathBuf;
 use std::fs::File;
 use std::path::Path;
 use tar::Builder;
 use uucore::error::UResult;
+
+pub struct Create;
+
+impl TarOperation for Create {
+    fn exec(&self, options: &TarOptions) -> UResult<()> {
+       create_archive(options.archive(), options.files().as_slice(), options.options().iter().any(|x| matches!(x, TarOption::Verbose))) 
+    }
+}
 
 /// Create a tar archive from the specified files
 ///
@@ -23,7 +34,7 @@ use uucore::error::UResult;
 /// - The archive file cannot be created
 /// - Any input file cannot be read
 /// - Files cannot be added due to I/O or permission errors
-pub fn create_archive(archive_path: &Path, files: &[&Path], verbose: bool) -> UResult<()> {
+pub fn create_archive(archive_path: &Path, files: &[PathBuf], verbose: bool) -> UResult<()> {
     // Create the output file
     let file = File::create(archive_path).map_err(|e| {
         TarError::TarOperationError(format!(
@@ -41,7 +52,7 @@ pub fn create_archive(archive_path: &Path, files: &[&Path], verbose: bool) -> UR
     }
 
     // Add each file or directory to the archive
-    for &path in files {
+    for path in files {
         if verbose {
             println!("{}", path.display());
         }

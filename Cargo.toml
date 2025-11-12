@@ -63,7 +63,6 @@ uutests = { workspace = true }
 uucore = { workspace = true }
 uuhelp_parser = { workspace = true, optional = true }
 zip = { workspace = true, optional = true }
-
 tar = { optional = true, version = "0.0.1", package = "uu_tar", path = "src/uu/tar" }
 
 [dev-dependencies]

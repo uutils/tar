@@ -1,12 +1,12 @@
-use jiff::tz::TimeZone;
-use tar::Archive;
-use std::fs::File;
-use std::fmt::Write;
+use crate::errors::TarError;
 use crate::operations::operation::TarOperation;
 use crate::options::options::{TarOption, TarOptions};
+use jiff::tz::TimeZone;
+use jiff::{Timestamp, Zoned};
+use std::fmt::Write;
+use std::fs::File;
+use tar::Archive;
 use uucore::error::UResult;
-use crate::errors::TarError;
-use jiff::{Zoned, Timestamp};
 
 pub(crate) struct List;
 
@@ -19,7 +19,10 @@ impl TarOperation for List {
             .options()
             .iter()
             .any(|x| matches!(x, TarOption::Verbose));
-        for entry in archive.entries().map_err(|x| TarError::TarOperationError(x.to_string()))? {
+        for entry in archive
+            .entries()
+            .map_err(|x| TarError::TarOperationError(x.to_string()))?
+        {
             let e = entry.map_err(|x| TarError::TarOperationError(x.to_string()))?;
             print_entry(e, verbose)?;
         }
@@ -34,16 +37,23 @@ fn print_entry(entry: tar::Entry<File>, verbose: bool) -> UResult<()> {
     if verbose {
         let perm_str = format_perms(header.mode()?);
         // select to use the username/groupname string or uid/gid
-        let (u_val, g_val) = if let (Ok(Some(un)), Ok(Some(gn))) = (header.username(), header.groupname()) {
-            if !un.is_empty() && !gn.is_empty() {
-                (un.to_owned(), gn.to_owned())
+        let (u_val, g_val) =
+            if let (Ok(Some(un)), Ok(Some(gn))) = (header.username(), header.groupname()) {
+                if !un.is_empty() && !gn.is_empty() {
+                    (un.to_owned(), gn.to_owned())
+                } else {
+                    // TODO: Remove unwraps
+                    (
+                        header.uid().unwrap().to_string(),
+                        header.gid().unwrap().to_string(),
+                    )
+                }
             } else {
-                // TODO: Remove unwraps
-                (header.uid().unwrap().to_string(), header.gid().unwrap().to_string())
-            }
-        } else {
-                (header.uid().unwrap().to_string(), header.gid().unwrap().to_string())
-        };
+                (
+                    header.uid().unwrap().to_string(),
+                    header.gid().unwrap().to_string(),
+                )
+            };
         // UNIX tar has this as the minimum size of the Username/id Groupname/id + size
         // section of a listing the anything under 19 is padded over 19 grows and gets
         // padded with 1 space
@@ -60,11 +70,20 @@ fn print_entry(entry: tar::Entry<File>, verbose: bool) -> UResult<()> {
         }
         // construct the combo string with padding
         // TODO: Remove unwrap
-        let ugs = format!("{}/{}{}{}", u_val, g_val, pad_string, header.size().unwrap());
+        let ugs = format!(
+            "{}/{}{}{}",
+            u_val,
+            g_val,
+            pad_string,
+            header.size().unwrap()
+        );
 
         // TODO: Remove unwrap
         // Wrap to jiff timestamps
-        let mtime_zoned = Zoned::new(Timestamp::new(header.mtime().unwrap().try_into().unwrap(), 0).unwrap(), TimeZone::system());
+        let mtime_zoned = Zoned::new(
+            Timestamp::new(header.mtime().unwrap().try_into().unwrap(), 0).unwrap(),
+            TimeZone::system(),
+        );
 
         write!(
             &mut line_to_print,
@@ -77,7 +96,8 @@ fn print_entry(entry: tar::Entry<File>, verbose: bool) -> UResult<()> {
         .map_err(|x| TarError::TarOperationError(x.to_string()))?;
     } else {
         // TODO: Remove unwrap
-        write!(&mut line_to_print, "{}", header.path().unwrap().display()).map_err(|x| TarError::TarOperationError(x.to_string()))?;
+        write!(&mut line_to_print, "{}", header.path().unwrap().display())
+            .map_err(|x| TarError::TarOperationError(x.to_string()))?;
     }
     // print string buffer
     println!("{}", line_to_print);

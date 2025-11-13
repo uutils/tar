@@ -1,5 +1,5 @@
-use crate::operations::operation::{Operation};
 use crate::errors::TarError;
+use crate::operations::OperationKind;
 use clap::{ArgMatches, Id};
 use std::path::PathBuf;
 use uucore::error::UResult;
@@ -36,29 +36,28 @@ impl Default for TarOptions {
 // clap
 impl From<&ArgMatches> for TarOptions {
     fn from(matches: &ArgMatches) -> TarOptions {
+        println!("{:?}", matches);
         let mut fp = vec![];
         let mut ops = Self::default();
-        if let Ok(Some(opts_id)) = matches.try_get_many::<Id>("options") {
-            for opt_id in opts_id {
-                match opt_id.as_str() {
-                    "verbose" => {
-                        ops.options_mut().push(TarOption::Verbose);
-                    }
-                    "files" => {
-                        if let Some(files) = matches.get_many::<PathBuf>(opt_id.as_str()) {
-                            for file in files {
-                                fp.push(file.to_owned());
-                            }
-                        }
-                        ops.files_mut().append(&mut fp);
-                    }
-                    "archive" => {
-                        if let Some(a) = matches.get_one::<PathBuf>(opt_id.as_str()) {
-                            ops.archive = a.to_owned();
-                        }
-                    }
-                    _ => {}
+        for i in matches.ids() {
+            match i.as_str() {
+                "verbose" => {
+                    ops.options_mut().push(TarOption::Verbose);
                 }
+                "files" => {
+                    if let Some(files) = matches.get_many::<PathBuf>(i.as_str()) {
+                        for file in files {
+                            fp.push(file.to_owned());
+                        }
+                    }
+                    ops.files_mut().append(&mut fp);
+                }
+                "archive" => {
+                    if let Some(a) = matches.get_one::<PathBuf>(i.as_str()) {
+                        ops.archive = a.to_owned();
+                    }
+                }
+                _ => {}
             }
         }
         ops
@@ -68,15 +67,16 @@ impl From<&ArgMatches> for TarOptions {
 impl TarOptions {
     /// Convence method that parses the [`ArgMatches`]
     /// processed by clap into [`TarOptions`] and selects
-    /// the appropriate [`Operation`] for execution given back to the caller in a
-    /// tuple of ([`Operation`], [`TarOptions`])
-    pub fn with_operation(matches: &ArgMatches) -> UResult<(Operation, Self)> {
-        let options = Self::from(matches);
-        if let Ok(Some(o)) = matches.try_get_one::<Id>("operations") {
-            Ok((Operation::try_from(o)?, options))
+    /// the appropriate [`OperationKind`] for execution given back to the caller in a
+    /// tuple of ([`OperationKind`], [`TarOptions`])
+    pub fn with_operation(matches: &ArgMatches) -> UResult<(OperationKind, Self)> {
+        if let Some((o, m)) = matches.subcommand() {
+            Ok((OperationKind::try_from(o)?, Self::from(m)))
         } else {
             // TODO: update messaging
-            Err(Box::new(TarError::TarOperationError("Error processing: Operations".to_string())))
+            Err(Box::new(TarError::TarOperationError(
+                "Error processing: Operations".to_string(),
+            )))
         }
     }
 }

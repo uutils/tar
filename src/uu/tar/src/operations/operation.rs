@@ -1,15 +1,15 @@
-use crate::operations::create::Create;
-use crate::operations::extract::Extract;
-use crate::operations::list::List;
-use crate::options::options::TarOptions;
 use crate::errors::TarError;
+use crate::operations::Create;
+use crate::operations::Extract;
+use crate::operations::List;
+use crate::options::TarOptions;
 use clap::Id;
 use uucore::error::UResult;
 
-/// [`Operation`] Enum representation of Acdtrux arguments which is
+/// The [`OperationKind`] Enum representation of Acdtrux arguments which is
 /// later leveraged as selector for enum dispatch by the [`TarOperation`]
 /// trait
-pub enum Operation {
+pub enum OperationKind {
     Concatenate,
     Create,
     Diff,
@@ -19,10 +19,10 @@ pub enum Operation {
     Extract,
 }
 
-impl TryFrom<&Id> for Operation {
+impl TryFrom<&str> for OperationKind {
     type Error = TarError;
-    fn try_from(value: &Id) -> Result<Self, Self::Error> {
-        match value.as_str() {
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
             "concate" => Ok(Self::Concatenate),
             "create" => Ok(Self::Create),
             "diff" => Ok(Self::Diff),
@@ -30,12 +30,16 @@ impl TryFrom<&Id> for Operation {
             "append" => Ok(Self::Append),
             "update" => Ok(Self::Update),
             "extract" => Ok(Self::Extract),
-            _ => Err(TarError::TarOperationError(value.to_string())),
+            _ => Err(
+                TarError::TarOperationError(
+                    format!("Invalid operation selected: {}", value.to_string())
+                )
+            ),
         }
     }
 }
 
-impl TarOperation for Operation {
+impl TarOperation for OperationKind {
     fn exec(&self, options: &TarOptions) -> UResult<()> {
         match self {
             Self::List => List.exec(options),
@@ -55,4 +59,3 @@ impl TarOperation for Operation {
 pub trait TarOperation {
     fn exec(&self, options: &TarOptions) -> UResult<()>;
 }
-

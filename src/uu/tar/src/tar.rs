@@ -7,19 +7,18 @@ pub mod errors;
 mod operations;
 mod options;
 
-use clap::{arg, ArgGroup, crate_version, Arg, ArgAction, Command};
-use options::options::{TarOptions};
+use clap::{arg, crate_version, Arg, ArgAction, ArgGroup, Command, error::ErrorKind};
 use operations::operation::TarOperation;
-use std::path::{Path, PathBuf};
-use uucore::error::UResult;
+use options::TarOptions;
+use std::path::PathBuf;
+use uucore::error::{UResult, USimpleError};
 use uucore::format_usage;
 
 const ABOUT: &str = "an archiving utility";
-const USAGE: &str = "tar {c|x}[v] -f ARCHIVE [FILE...]";
+const USAGE: &str = "tar {A|c|d|r|t|u|x}[GnSkUWOmpsMBiajJzZhPlRvwo] -f ARCHIVE [FILES...]";
 
 #[uucore::main]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
-
     // Collect args - the test framework may add util_name as args[1], so skip it if present
     let args_vec: Vec<_> = args.collect();
     let util_name = uucore::util_name();
@@ -40,8 +39,6 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     let (op, options) = TarOptions::with_operation(&matches)?;
 
     op.exec(&options)
-
-
 
     // // Handle extract operation
     // if matches.get_flag("extract") {
@@ -89,40 +86,53 @@ pub fn uu_app() -> Command {
         .disable_help_flag(true)
         .override_usage(format_usage(USAGE))
         .infer_long_args(true)
-        .groups([
-            ArgGroup::new("operations").required(true),
-            ArgGroup::new("compression"),
-            ArgGroup::new("options").multiple(true),
+        .subcommand_required(true)
+        .subcommands([
+            Command::new("catenate").short_flag('A').long_flag("catenate"),
+            Command::new("create").short_flag('c').long_flag("create"),
+            Command::new("diff").short_flag('d').long_flag("diff"),
+            Command::new("list").short_flag('t').long_flag("list"),
+            Command::new("append").short_flag('r').long_flag("append"),
+            Command::new("update").short_flag('u').long_flag("update"),
+            Command::new("extract").short_flag('x').long_flag("extract"),
+            Command::new("delete").long_flag("delete"),
         ])
+        .subcommand_help_heading("Operation Modes")
         .args([
-            // Main operation modes
-            arg!(-A --catenate "Append tar files to archive").group("operations"),
-            arg!(-c --create "Create a new archive").group("operations"),
-            arg!(-d --diff "Find differences between archive and file system")
-                .alias("compare")
-                .group("operations"),
-            arg!(-r --append "Append files to end of archive").group("operations"),
-            arg!(-t --list "List contents of archive").group("operations"),
-            arg!(-u --update "Only append files newer than copy in archive").group("operations"),
-            arg!(-x --extract "Extract files from archive")
-                .alias("get")
-                .group("operations"),
+
+            // // Main operation modes
+            // arg!(-A --catenate "Append tar files to archive").group("operations").requires("files"),
+            // arg!(-c --create "Create a new archive").group("operations").requires("files"),
+            // arg!(-d --diff "Find differences between archive and file system")
+            //     .alias("compare")
+            //     .group("operations"),
+            // arg!(-r --append "Append files to end of archive").group("operations").requires("files"),
+            // arg!(-t --list "List contents of archive").group("operations"),
+            // arg!(-u --update "Only append files newer than copy in archive").group("operations").requires("files"),
+            // arg!(-x --extract "Extract files from archive")
+            //     .alias("get")
+            //     .group("operations"),
+
             // Archive file
             Arg::new("archive")
                 .long("file")
                 .short('f')
                 .help("Use archive file")
                 .value_parser(clap::value_parser!(PathBuf))
-                .group("options"),
+                .global(true),
+            
             // Compression options
-            arg!(-z --gzip "Filter through gzip").group("compression"),
-            arg!(-j --bzip2 "Filter through bzip2").group("compression"),
-            arg!(-J --xz "Filter through xz").group("compression"),
+            arg!(-z --gzip "Filter through gzip"),
+            arg!(-j --bzip2 "Filter through bzip2"),
+            arg!(-J --xz "Filter through xz"),
+
             // Common options
-            arg!(-v --verbose "Verbosely list files processed").group("options"),
-            arg!(-h --dereference "Follow symlinks").group("options"),
+            arg!(-v --verbose "Verbosely list files processed").global(true),
+            arg!(-h --dereference "Follow symlinks"),
+
             // custom long help
             Arg::new("help").long("help").action(ArgAction::Help),
+
             // arg macro has an issue with the '-' in the middle of the long args
             Arg::new("preserve-permissions")
                 .short('p')
@@ -134,12 +144,14 @@ pub fn uu_app() -> Command {
                 .long("absolute-names")
                 .action(clap::ArgAction::SetTrue)
                 .group("options"),
+
             // Files to process
             Arg::new("files")
                 .help("Files to archive or extract")
                 .value_parser(clap::value_parser!(PathBuf))
                 .num_args(0..)
-                .group("options"),
+                .group("options") 
+                .global(true)
         ])
 }
 

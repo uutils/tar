@@ -15,7 +15,13 @@ pub(crate) struct Extract;
 
 impl TarOperation for Extract {
     fn exec(&self, options: &TarOptions) -> UResult<()> {
-        extract_archive(options.archive(), options.options().iter().any(|x| matches!(x, TarOption::Verbose)))
+        extract_archive(
+            options.archive(),
+            options
+                .options()
+                .iter()
+                .any(|x| matches!(x, TarOption::Verbose)),
+        )
     }
 }
 

@@ -4,11 +4,11 @@
 // file that was distributed with this source code.
 
 use crate::errors::TarError;
-use crate::operations::operation::TarOperation;
-use crate::options::options::{TarOptions, TarOption};
-use std::path::PathBuf;
+use crate::operations::TarOperation;
+use crate::options::{TarOption, TarOptions};
 use std::fs::File;
 use std::path::Path;
+use std::path::PathBuf;
 use tar::Builder;
 use uucore::error::UResult;
 
@@ -16,7 +16,14 @@ pub struct Create;
 
 impl TarOperation for Create {
     fn exec(&self, options: &TarOptions) -> UResult<()> {
-       create_archive(options.archive(), options.files().as_slice(), options.options().iter().any(|x| matches!(x, TarOption::Verbose))) 
+        create_archive(
+            options.archive(),
+            options.files().as_slice(),
+            options
+                .options()
+                .iter()
+                .any(|x| matches!(x, TarOption::Verbose)),
+        )
     }
 }
 

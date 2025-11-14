@@ -5,7 +5,7 @@
 
 use crate::errors::TarError;
 use crate::operations::TarOperation;
-use crate::options::{TarOption, TarOptions};
+use crate::options::{TarOption, TarParams};
 use std::fs::File;
 use std::path::Path;
 use std::path::PathBuf;
@@ -15,7 +15,7 @@ use uucore::error::UResult;
 pub struct Create;
 
 impl TarOperation for Create {
-    fn exec(&self, options: &TarOptions) -> UResult<()> {
+    fn exec(&self, options: &TarParams) -> UResult<()> {
         create_archive(
             options.archive(),
             options.files().as_slice(),

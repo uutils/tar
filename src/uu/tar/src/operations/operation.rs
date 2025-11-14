@@ -2,7 +2,7 @@ use crate::errors::TarError;
 use crate::operations::Create;
 use crate::operations::Extract;
 use crate::operations::List;
-use crate::options::TarOptions;
+use crate::options::TarParams;
 use uucore::error::UResult;
 
 /// The [`OperationKind`] Enum representation of Acdtrux arguments which is
@@ -29,17 +29,16 @@ impl TryFrom<&str> for OperationKind {
             "append" => Ok(Self::Append),
             "update" => Ok(Self::Update),
             "extract" => Ok(Self::Extract),
-            _ => Err(
-                TarError::TarOperationError(
-                    format!("Invalid operation selected: {}", value.to_string())
-                )
-            ),
+            _ => Err(TarError::TarOperationError(format!(
+                "Invalid operation selected: {}",
+                value.to_string()
+            ))),
         }
     }
 }
 
 impl TarOperation for OperationKind {
-    fn exec(&self, options: &TarOptions) -> UResult<()> {
+    fn exec(&self, options: &TarParams) -> UResult<()> {
         match self {
             Self::List => List.exec(options),
             Self::Create => Create.exec(options),
@@ -56,5 +55,5 @@ impl TarOperation for OperationKind {
 /// trait to create the functionality to perform the operation requested via
 /// the command line arg for this execution of tar
 pub trait TarOperation {
-    fn exec(&self, options: &TarOptions) -> UResult<()>;
+    fn exec(&self, options: &TarParams) -> UResult<()>;
 }

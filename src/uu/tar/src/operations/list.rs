@@ -1,6 +1,6 @@
 use crate::errors::TarError;
 use crate::operations::operation::TarOperation;
-use crate::options::options::{TarOption, TarOptions};
+use crate::options::{TarOption, TarParams};
 use jiff::tz::TimeZone;
 use jiff::{Timestamp, Zoned};
 use std::fmt::Write;
@@ -11,7 +11,7 @@ use uucore::error::UResult;
 pub(crate) struct List;
 
 impl TarOperation for List {
-    fn exec(&self, options: &TarOptions) -> UResult<()> {
+    fn exec(&self, options: &TarParams) -> UResult<()> {
         // TODO: I think there is some sort of option to list a
         // particular member
         let mut archive = Archive::new(File::open(options.archive())?);

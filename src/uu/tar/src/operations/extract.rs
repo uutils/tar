@@ -5,7 +5,7 @@
 
 use crate::errors::TarError;
 use crate::operations::operation::TarOperation;
-use crate::options::options::{TarOption, TarOptions};
+use crate::options::options::{TarOption, TarParams};
 use std::fs::File;
 use std::path::Path;
 use tar::Archive;
@@ -14,7 +14,7 @@ use uucore::error::UResult;
 pub(crate) struct Extract;
 
 impl TarOperation for Extract {
-    fn exec(&self, options: &TarOptions) -> UResult<()> {
+    fn exec(&self, options: &TarParams) -> UResult<()> {
         extract_archive(
             options.archive(),
             options

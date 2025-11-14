@@ -39,7 +39,9 @@ impl From<&ArgMatches> for TarParams {
         for i in matches.ids() {
             match i.as_str() {
                 "verbose" => {
-                    ops.options_mut().push(TarOption::Verbose);
+                    if matches.get_flag(i.as_str()) {
+                        ops.options_mut().push(TarOption::Verbose);
+                    }
                 }
                 "files" => {
                     if let Some(files) = matches.get_many::<PathBuf>(i.as_str()) {

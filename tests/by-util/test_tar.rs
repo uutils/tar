@@ -3,7 +3,7 @@
 // For the full copyright and license information, please view the LICENSE
 // file that was distributed with this source code.
 
-use uutests::{at_and_ucmd, new_ucmd};
+use uutests::{at_and_ucmd, new_ucmd, util::TerminalSimulation};
 
 // Basic CLI Tests
 
@@ -113,4 +113,30 @@ fn test_extract_nonexistent_archive() {
         .args(&["-xf", "nonexistent.tar"])
         .fails()
         .code_is(1);
+}
+
+// List operation tests
+
+#[test]
+fn test_list_archive() {
+    let (at, mut ucmd) = at_and_ucmd!();
+
+    // Create an archive with multiple files
+    at.write("file1.txt", "content1");
+    at.write("file2.txt", "content2");
+    ucmd.args(&["-cf", "archive.tar", "file1.txt", "file2.txt"])
+        .succeeds();
+
+    // Remove originals
+    at.remove("file1.txt");
+    at.remove("file2.txt");
+
+    // List
+    let res = new_ucmd!()
+        .arg("-tf")
+        .arg(at.plus("archive.tar"))
+        .current_dir(at.as_string())
+        .succeeds();
+
+    res.stdout_is("file.txt\n file2.txt");
 }

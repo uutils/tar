@@ -34,9 +34,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
                         1,
                         format!(
                             "option requires an argument {}",
-                            e.get(clap::error::ContextKind::InvalidArg)
-                                .unwrap()
-                                .to_string()
+                            e.get(clap::error::ContextKind::InvalidArg).expect("No argument") 
                         ),
                     ));
                 }

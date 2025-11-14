@@ -6,7 +6,7 @@ use jiff::{Timestamp, Zoned};
 use std::fmt::Write;
 use std::fs::File;
 use tar::Archive;
-use uucore::error::UResult;
+use uucore::error::{UResult, USimpleError};
 
 pub(crate) struct List;
 
@@ -42,16 +42,15 @@ fn print_entry(entry: tar::Entry<File>, verbose: bool) -> UResult<()> {
                 if !un.is_empty() && !gn.is_empty() {
                     (un.to_owned(), gn.to_owned())
                 } else {
-                    // TODO: Remove unwraps
                     (
-                        header.uid().unwrap().to_string(),
-                        header.gid().unwrap().to_string(),
+                        header.uid()?.to_string(),
+                        header.gid()?.to_string(),
                     )
                 }
             } else {
                 (
-                    header.uid().unwrap().to_string(),
-                    header.gid().unwrap().to_string(),
+                    header.uid()?.to_string(),
+                    header.gid()?.to_string(),
                 )
             };
         // UNIX tar has this as the minimum size of the Username/id Groupname/id + size
@@ -60,8 +59,7 @@ fn print_entry(entry: tar::Entry<File>, verbose: bool) -> UResult<()> {
         // Something in me feels like this could overflow stdout some how?
         let ugs_size: usize = 19;
         let pad = ugs_size.saturating_sub(
-            // TODO: Remove unwrap
-            u_val.len() + 1 + g_val.len() + 1 + header.size().unwrap().to_string().len(),
+            u_val.len() + 1 + g_val.len() + 1 + header.size()?.to_string().len(),
         );
         let mut pad_string = String::new();
         // pad with spaces
@@ -69,19 +67,19 @@ fn print_entry(entry: tar::Entry<File>, verbose: bool) -> UResult<()> {
             pad_string.push(' ');
         }
         // construct the combo string with padding
-        // TODO: Remove unwrap
         let ugs = format!(
             "{}/{}{}{}",
             u_val,
             g_val,
             pad_string,
-            header.size().unwrap()
+            header.size()?
         );
 
-        // TODO: Remove unwrap
         // Wrap to jiff timestamps
         let mtime_zoned = Zoned::new(
-            Timestamp::new(header.mtime().unwrap().try_into().unwrap(), 0).unwrap(),
+            // TODO: More descriptive errors needed
+            Timestamp::new(header.mtime()?.try_into().expect("Couldnt convert mtime"
+            ), 0).map_err(|_| USimpleError::new(1, "Invalid mtime timestamp"))?,
             TimeZone::system(),
         );
 
@@ -95,8 +93,7 @@ fn print_entry(entry: tar::Entry<File>, verbose: bool) -> UResult<()> {
         )
         .map_err(|x| TarError::TarOperationError(x.to_string()))?;
     } else {
-        // TODO: Remove unwrap
-        write!(&mut line_to_print, "{}", header.path().unwrap().display())
+        write!(&mut line_to_print, "{}", header.path()?.display())
             .map_err(|x| TarError::TarOperationError(x.to_string()))?;
     }
     // print string buffer

@@ -31,7 +31,7 @@ impl TryFrom<&str> for OperationKind {
             "extract" => Ok(Self::Extract),
             _ => Err(TarError::TarOperationError(format!(
                 "Invalid operation selected: {}",
-                value.to_string()
+                value
             ))),
         }
     }

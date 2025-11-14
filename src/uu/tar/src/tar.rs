@@ -20,9 +20,25 @@ const BLOCK_SIZE: usize = 512;
 
 #[uucore::main]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
+
+    // Collect args - the test framework may add util_name as args[1], so skip it if present
+    let args_vec: Vec<_> = args.collect();
+    let util_name = uucore::util_name();
+
+    // Skip duplicate util name if present (can be "tar" or "tarapp")
+    let args_to_parse = if args_vec.len() > 1
+        && (args_vec[1] == util_name || args_vec[1] == "tar" || args_vec[1] == "tarapp")
+    {
+        let mut result = vec![args_vec[0].clone()];
+        result.extend_from_slice(&args_vec[2..]);
+        result
+    } else {
+        args_vec
+    };
+
     // get command line args and handle some errors.
     let matches =
-        match uu_app().try_get_matches_from(args) {
+        match uu_app().try_get_matches_from(args_to_parse) {
             Ok(m) => m,
             Err(e) => match e.kind() {
                 ErrorKind::MissingSubcommand => return Err(USimpleError::new(
@@ -137,7 +153,6 @@ pub fn uu_app() -> Command {
                         .help("Files to archive or extract")
                         .value_parser(clap::value_parser!(PathBuf))
                         .num_args(0..)
-                        .required(true)
                         .requires("archive"),
                 ),
             Command::new("delete").long_flag("delete").arg(

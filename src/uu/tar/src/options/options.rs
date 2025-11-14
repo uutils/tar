@@ -1,30 +1,28 @@
 use crate::errors::TarError;
 use crate::operations::OperationKind;
-use clap::{ArgMatches, Id};
+use crate::BLOCK_SIZE;
+use clap::ArgMatches;
 use std::path::PathBuf;
 use uucore::error::UResult;
 
-/// [`TarOptions`] Holds common information that is parsed from
+/// [`TarParams`] Holds common information that is parsed from
 /// command line arguments. That changes the current execution of
 /// tar.
-// TODO: Come up with a different name
-// other than TarOptions...with Options.
-// Maybe TarParams?
 #[allow(dead_code)]
-pub struct TarOptions {
+pub struct TarParams {
     block_size: usize,
     archive: PathBuf,
     files: Vec<PathBuf>,
     options: Vec<TarOption>,
 }
 
-/// [`Default`] Produces safe default values for options
+/// [`Default`] Produces safe default values for [`TarParams`] and [`TarOption`]s
 /// for this tar execution. Block-Size of 512 bytes, Empty vec's of
 /// options and file names.
-impl Default for TarOptions {
-    fn default() -> TarOptions {
+impl Default for TarParams {
+    fn default() -> TarParams {
         Self {
-            block_size: 512,
+            block_size: BLOCK_SIZE,
             archive: PathBuf::default(),
             options: Vec::new(),
             files: Vec::new(),
@@ -34,9 +32,8 @@ impl Default for TarOptions {
 
 // NOTE: I feel like this is just reimplmenting the parsing functionality of
 // clap
-impl From<&ArgMatches> for TarOptions {
-    fn from(matches: &ArgMatches) -> TarOptions {
-        println!("{:?}", matches);
+impl From<&ArgMatches> for TarParams {
+    fn from(matches: &ArgMatches) -> TarParams {
         let mut fp = vec![];
         let mut ops = Self::default();
         for i in matches.ids() {
@@ -64,11 +61,11 @@ impl From<&ArgMatches> for TarOptions {
     }
 }
 
-impl TarOptions {
+impl TarParams {
     /// Convence method that parses the [`ArgMatches`]
-    /// processed by clap into [`TarOptions`] and selects
+    /// processed by clap into [`TarParams`] and selects
     /// the appropriate [`OperationKind`] for execution given back to the caller in a
-    /// tuple of ([`OperationKind`], [`TarOptions`])
+    /// tuple of ([`OperationKind`], [`TarParams`])
     pub fn with_operation(matches: &ArgMatches) -> UResult<(OperationKind, Self)> {
         if let Some((o, m)) = matches.subcommand() {
             Ok((OperationKind::try_from(o)?, Self::from(m)))
@@ -82,7 +79,7 @@ impl TarOptions {
 }
 
 #[allow(dead_code)]
-impl TarOptions {
+impl TarParams {
     pub fn files(&self) -> &Vec<PathBuf> {
         &self.files
     }
@@ -104,7 +101,7 @@ impl TarOptions {
 }
 
 /// [`TarOption`] Enum of avaliable tar options for later use
-/// by [`Operation`] impls, eg. List, Create, Delete
+/// by [`TarOperation`] impls, eg. List, Create, Delete
 #[allow(dead_code)]
 pub enum TarOption {
     AbsoluteNames,

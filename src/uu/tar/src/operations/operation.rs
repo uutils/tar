@@ -3,7 +3,6 @@ use crate::operations::Create;
 use crate::operations::Extract;
 use crate::operations::List;
 use crate::options::TarOptions;
-use clap::Id;
 use uucore::error::UResult;
 
 /// The [`OperationKind`] Enum representation of Acdtrux arguments which is

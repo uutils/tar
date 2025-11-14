@@ -7,7 +7,7 @@ pub mod errors;
 mod operations;
 mod options;
 
-use clap::{arg, crate_version, error::ErrorKind, value_parser, Arg, ArgAction, ArgGroup, Command};
+use clap::{arg, crate_version, error::ErrorKind, value_parser, Arg, ArgAction, Command};
 use operations::operation::TarOperation;
 use options::TarParams;
 use std::path::PathBuf;
@@ -20,21 +20,7 @@ const BLOCK_SIZE: usize = 512;
 
 #[uucore::main]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
-    // // Collect args - the test framework may add util_name as args[1], so skip it if present
-    // let args_vec: Vec<_> = args.collect();
-    // let util_name = uucore::util_name();
-    //
-    // // Skip duplicate util name if present (can be "tar" or "tarapp")
-    // let args_to_parse = if args_vec.len() > 1
-    //     && (args_vec[1] == util_name || args_vec[1] == "tar" || args_vec[1] == "tarapp")
-    // {
-    //     let mut result = vec![args_vec[0].clone()];
-    //     result.extend_from_slice(&args_vec[2..]);
-    //     result
-    // } else {
-    //     args_vec
-    // };
-
+    // get command line args and handle some errors.
     let matches =
         match uu_app().try_get_matches_from(args) {
             Ok(m) => m,
@@ -58,13 +44,18 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
             },
         };
 
-    let (op, options) = TarParams::with_operation(&matches)?;
+    // get the selected operation function pointer
+    let (op, params) = TarParams::with_operation(&matches)?;
 
-    op.exec(&options)
+    // execute selected operation and pass parsed [`TarParams`]
+    op.exec(&params)
 }
 
 #[allow(clippy::cognitive_complexity)]
 pub fn uu_app() -> Command {
+    // OperationKind mirrors the tar "Main Operation Modes" for clap each of these
+    // main operation modes are created as subcommands to help control handling of the
+    // TONS of params tar has
     Command::new(uucore::util_name())
         .version(crate_version!())
         .about(ABOUT)
@@ -83,8 +74,8 @@ pub fn uu_app() -> Command {
                         .help("Files to archive or extract")
                         .value_parser(clap::value_parser!(PathBuf))
                         .num_args(0..)
-                        .required(true),
-                    .requires("archive"),
+                        .required(true)
+                        .requires("archive"),
                 ),
             Command::new("create")
                 .short_flag('c')
@@ -94,8 +85,8 @@ pub fn uu_app() -> Command {
                         .help("Files to archive or extract")
                         .value_parser(clap::value_parser!(PathBuf))
                         .num_args(0..)
-                        .required(true),
-                    .requires("archive"),
+                        .required(true)
+                        .requires("archive"),
                 ),
             Command::new("diff")
                 .short_flag('d')
@@ -106,15 +97,16 @@ pub fn uu_app() -> Command {
                         .help("Files to archive or extract")
                         .value_parser(clap::value_parser!(PathBuf))
                         .num_args(0..)
-                        .required(true),
-                    .requires("archive"),
+                        .required(true)
+                        .requires("archive"),
                 ),
             Command::new("list").short_flag('t').long_flag("list").arg(
                 Arg::new("members")
                     .help("Archive members to list")
                     .value_parser(clap::value_parser!(PathBuf))
                     .num_args(0..)
-                    .last(true).requires("archive")
+                    .last(true)
+                    .requires("archive"),
             ),
             Command::new("append")
                 .short_flag('r')
@@ -124,8 +116,8 @@ pub fn uu_app() -> Command {
                         .help("Files to archive or extract")
                         .value_parser(clap::value_parser!(PathBuf))
                         .num_args(0..)
-                        .required(true),
-                    .requires("archive"),
+                        .required(true)
+                        .requires("archive"),
                 ),
             Command::new("update")
                 .short_flag('u')
@@ -135,8 +127,8 @@ pub fn uu_app() -> Command {
                         .help("Files to archive or extract")
                         .value_parser(clap::value_parser!(PathBuf))
                         .num_args(0..)
-                        .required(true),
-                    .requires("archive"),
+                        .required(true)
+                        .requires("archive"),
                 ),
             Command::new("extract")
                 .short_flag('x')
@@ -147,15 +139,15 @@ pub fn uu_app() -> Command {
                         .help("Files to archive or extract")
                         .value_parser(clap::value_parser!(PathBuf))
                         .num_args(0..)
-                        .required(true),
-                    .requires("archive"),
+                        .required(true)
+                        .requires("archive"),
                 ),
             Command::new("delete").long_flag("delete").arg(
                 Arg::new("members")
                     .help("Files to archive or extract")
                     .value_parser(clap::value_parser!(PathBuf))
                     .num_args(0..)
-                    .required(true),
+                    .required(true)
                     .requires("archive"),
             ),
             Command::new("test-label").long_flag("test-label").arg(

@@ -16,6 +16,8 @@ categories = ["command-line-utilities"]
 uucore = { workspace = true }
 clap = { workspace = true }
 regex = { workspace = true }
+tar = { workspace = true }
+jiff = "0.2.16"
 
 [lib]
 path = "src/tar.rs"

@@ -38,7 +38,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     // Handle extract operation
     if matches.get_flag("extract") {
         let archive_path = matches.get_one::<PathBuf>("file").ok_or_else(|| {
-            uucore::error::USimpleError::new(1, "tar: option requires an argument -- 'f'")
+            uucore::error::USimpleError::new(1, "option requires an argument -- 'f'")
         })?;
 
         return operations::extract::extract_archive(archive_path, verbose);
@@ -47,7 +47,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     // Handle create operation
     if matches.get_flag("create") {
         let archive_path = matches.get_one::<PathBuf>("file").ok_or_else(|| {
-            uucore::error::USimpleError::new(1, "tar: option requires an argument -- 'f'")
+            uucore::error::USimpleError::new(1, "option requires an argument -- 'f'")
         })?;
 
         let files: Vec<&Path> = matches
@@ -58,7 +58,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         if files.is_empty() {
             return Err(uucore::error::USimpleError::new(
                 1,
-                "tar: Cowardly refusing to create an empty archive",
+                "Cowardly refusing to create an empty archive",
             ));
         }
 
@@ -68,7 +68,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     // If no operation specified, show error
     Err(uucore::error::USimpleError::new(
         1,
-        "tar: You must specify one of the '-c' or '-x' options",
+        "You must specify one of the '-c' or '-x' options",
     ))
 }
 

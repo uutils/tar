@@ -8,6 +8,39 @@ use std::fs::File;
 use tar::Archive;
 use uucore::error::{UResult, USimpleError};
 
+/// [`List`] prints member information of an archive to stdout
+///
+/// # Options
+///
+/// The most common option to use with List is Verbose which changes the
+/// information printed to stdout from just the file name or path to 
+/// extra header metadata including:
+///     - file permissions
+///     - uid/gid
+///     - size
+///     - mtime
+///     - file name/path
+///
+/// [`List`] is used in a varity of ways but most commonly to gather information
+/// about an archive or to pipe file lists to stdout for updating
+///
+/// # Usage
+///
+/// ```shell
+///     $ tar -tf <ARCHIVE>
+///     $ tar -tvf <ARCHIVE>
+///     $ tar -tvf <ARCHIVE> [members...]
+/// ```
+///
+/// # Impl
+///
+/// Given the straight forward nature of the [`List`] operation 
+/// the implmentation just attempts to open the requested archive
+/// provided in the arguments, checks to see if the Verbose flag is
+/// set then iterates through the entries printing them directly to
+/// stdout along the way. If at any point in time an error is encountered
+/// it exits the entire operation.
+///
 pub(crate) struct List;
 
 impl TarOperation for List {

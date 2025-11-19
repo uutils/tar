@@ -114,6 +114,10 @@ pub fn uu_app() -> Command {
                         .required(true)
                         .requires("archive"),
                 ),
+            // List prints all the members of a requested archive. The subargument 
+            // 'Members' tells tar which members to list by their name/path that is 
+            // recorded in the tar archive. The Verbose option instructs List to print
+            // the permissions, size, mtime, uid/gid and path of the member.
             Command::new("list").short_flag('t').long_flag("list").arg(
                 Arg::new("members")
                     .help("Archive members to list")

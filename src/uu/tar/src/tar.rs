@@ -6,7 +6,7 @@
 pub mod errors;
 mod operations;
 
-use clap::{arg, crate_version, Arg, ArgAction, Command};
+use clap::{arg, crate_version, ArgAction, Command};
 use std::path::{Path, PathBuf};
 use uucore::error::UResult;
 use uucore::format_usage;
@@ -83,23 +83,28 @@ pub fn uu_app() -> Command {
         .args([
             // Main operation modes
             arg!(-c --create "Create a new archive"),
+            // arg!(-d --diff "Find differences between archive and file system").alias("compare"),
+            // arg!(-r --append "Append files to end of archive"),
+            // arg!(-t --list "List contents of archive"),
+            // arg!(-u --update "Only append files newer than copy in archive"),
             arg!(-x --extract "Extract files from archive").alias("get"),
             // Archive file
             arg!(-f --file <ARCHIVE> "Use archive file or device ARCHIVE")
-                .value_parser(clap::value_parser!(PathBuf))
-                .required(false),
+                .value_parser(clap::value_parser!(PathBuf)),
+            // Compression options
+            // arg!(-z --gzip "Filter through gzip"),
+            // arg!(-j --bzip2 "Filter through bzip2"),
+            // arg!(-J --xz "Filter through xz"),
             // Common options
             arg!(-v --verbose "Verbosely list files processed"),
+            // arg!(-h --dereference "Follow symlinks"),
+            // arg!(-p --"preserve-permissions" "Extract information about file permissions"),
+            // arg!(-P --"absolute-names" "Don't strip leading '/' from file names"),
             // Help
-            Arg::new("help")
-                .long("help")
-                .help("Print help information")
-                .action(ArgAction::Help),
+            arg!(--help "Print help information").action(ArgAction::Help),
             // Files to process
-            Arg::new("files")
-                .help("Files to archive or extract")
+            arg!([files]... "Files to archive or extract")
                 .action(ArgAction::Append)
-                .value_parser(clap::value_parser!(PathBuf))
-                .num_args(0..),
+                .value_parser(clap::value_parser!(PathBuf)),
         ])
 }

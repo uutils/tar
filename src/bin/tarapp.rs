@@ -7,5 +7,12 @@ use std::env;
 use tar::uumain;
 
 fn main() {
-    std::process::exit(uumain(env::args_os()));
+    let exit_code = uumain(env::args_os());
+
+    // If exiting with code 2, show the "not recoverable" message
+    if exit_code == 2 {
+        uucore::show_error!("Error is not recoverable: exiting now");
+    }
+
+    std::process::exit(exit_code);
 }

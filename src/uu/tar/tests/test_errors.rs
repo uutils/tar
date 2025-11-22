@@ -9,26 +9,32 @@ use uu_tar::errors::TarError;
 #[test]
 fn test_tar_error_display() {
     let err = TarError::FileNotFound("test.txt".to_string());
-    assert_eq!(err.to_string(), "File not found: test.txt");
+    assert_eq!(
+        err.to_string(),
+        "test.txt: Cannot open: No such file or directory"
+    );
 
     let err = TarError::InvalidArchive("corrupted header".to_string());
-    assert_eq!(err.to_string(), "Invalid archive: corrupted header");
+    assert_eq!(err.to_string(), "corrupted header");
 
     let err = TarError::PermissionDenied("/root/file".to_string());
-    assert_eq!(err.to_string(), "Permission denied: /root/file");
+    assert_eq!(
+        err.to_string(),
+        "/root/file: Cannot open: Permission denied"
+    );
 
     let err = TarError::TarOperationError("failed to write".to_string());
-    assert_eq!(err.to_string(), "tar: failed to write");
+    assert_eq!(err.to_string(), "failed to write");
 }
 
 #[test]
 fn test_tar_error_code() {
     use uucore::error::UError;
 
-    assert_eq!(TarError::FileNotFound("test".to_string()).code(), 1);
+    assert_eq!(TarError::FileNotFound("test".to_string()).code(), 2);
     assert_eq!(TarError::InvalidArchive("test".to_string()).code(), 2);
-    assert_eq!(TarError::PermissionDenied("test".to_string()).code(), 1);
-    assert_eq!(TarError::TarOperationError("test".to_string()).code(), 1);
+    assert_eq!(TarError::PermissionDenied("test".to_string()).code(), 2);
+    assert_eq!(TarError::TarOperationError("test".to_string()).code(), 2);
 }
 
 #[test]
@@ -37,8 +43,8 @@ fn test_io_error_conversion_not_found() {
     let tar_err = TarError::from(io_err);
 
     match tar_err {
-        TarError::FileNotFound(msg) => assert!(msg.contains("file not found")),
-        _ => panic!("Expected FileNotFound variant"),
+        TarError::IoError(e) => assert_eq!(e.kind(), io::ErrorKind::NotFound),
+        _ => panic!("Expected IoError variant"),
     }
 }
 
@@ -48,8 +54,8 @@ fn test_io_error_conversion_permission_denied() {
     let tar_err = TarError::from(io_err);
 
     match tar_err {
-        TarError::PermissionDenied(msg) => assert!(msg.contains("access denied")),
-        _ => panic!("Expected PermissionDenied variant"),
+        TarError::IoError(e) => assert_eq!(e.kind(), io::ErrorKind::PermissionDenied),
+        _ => panic!("Expected IoError variant"),
     }
 }
 

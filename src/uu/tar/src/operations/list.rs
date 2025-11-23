@@ -5,7 +5,7 @@ use jiff::tz::TimeZone;
 use jiff::{Timestamp, Zoned};
 use std::fmt::Write;
 use std::fs::File;
-use tar::Archive;
+use tar::{Archive, Header};
 use uucore::error::{UResult, USimpleError};
 
 /// [`List`] prints member information of an archive to stdout
@@ -68,7 +68,7 @@ fn print_entry(entry: tar::Entry<File>, verbose: bool) -> UResult<()> {
     let mut line_to_print = String::new();
 
     if verbose {
-        let perm_str = format_perms(header.mode()?);
+        let perm_str = format_perms(header);
         // select to use the username/groupname string or uid/gid
         let (u_val, g_val) =
             if let (Ok(Some(un)), Ok(Some(gn))) = (header.username(), header.groupname()) {
@@ -109,7 +109,7 @@ fn print_entry(entry: tar::Entry<File>, verbose: bool) -> UResult<()> {
         write!(
             &mut line_to_print,
             "{} {} {} {}",
-            perm_str,
+            perm_str?,
             ugs,
             mtime_zoned.strftime("%Y-%m-%d %H:%M"),
             header.path().unwrap().display()
@@ -124,19 +124,32 @@ fn print_entry(entry: tar::Entry<File>, verbose: bool) -> UResult<()> {
     Ok(())
 }
 
-pub fn format_perms(mode: u32) -> String {
+pub fn format_perms(header: &Header) -> UResult<String> {
+    let mode = header.mode()?;
+
+    // check for header mode and set to 'd' if present
     let mut buf = ['-'; 10];
-    // check for the directory flag and set to 'd' if present
-    if 1000u32.checked_div(mode).take_if(|x| *x > 0).is_none() {
-        buf[0] = 'd';
+    if let Some(ustar) = header.as_ustar() {
+        match ustar.typeflag[0] as char {
+            '1' => buf[0] = 'l',
+            '5' => buf[0] = 'd',
+            _ => {}
+        }
+    } else if let Some(gnu) = header.as_gnu() {
+        match gnu.typeflag[0] as char {
+            '1' => buf[0] = 'l',
+            '5' => buf[0] = 'd',
+            _ => {}
+        }
     }
-    let owner = mode / 100;
-    let group = (mode / 10) % 10;
-    let other = mode % 10;
+
+    let owner = mode / 0o100;
+    let group = (mode / 0o10) % 0o10;
+    let other = mode % 0o10;
     mode_octal_to_string(owner, &mut buf[1..4]);
     mode_octal_to_string(group, &mut buf[4..7]);
     mode_octal_to_string(other, &mut buf[7..]);
-    String::from_iter(buf)
+    Ok(String::from_iter(buf))
 }
 /// Writes to a supplied buffer the char representation of a
 /// single standard linux octal permission (eg. 0..|7|..44)

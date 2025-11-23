@@ -13,7 +13,7 @@ use uucore::error::{UResult, USimpleError};
 /// # Options
 ///
 /// The most common option to use with List is Verbose which changes the
-/// information printed to stdout from just the file name or path to 
+/// information printed to stdout from just the file name or path to
 /// extra header metadata including:
 ///     - file permissions
 ///     - uid/gid
@@ -34,7 +34,7 @@ use uucore::error::{UResult, USimpleError};
 ///
 /// # Impl
 ///
-/// Given the straight forward nature of the [`List`] operation 
+/// Given the straight forward nature of the [`List`] operation
 /// the implmentation just attempts to open the requested archive
 /// provided in the arguments, checks to see if the Verbose flag is
 /// set then iterates through the entries printing them directly to
@@ -75,44 +75,34 @@ fn print_entry(entry: tar::Entry<File>, verbose: bool) -> UResult<()> {
                 if !un.is_empty() && !gn.is_empty() {
                     (un.to_owned(), gn.to_owned())
                 } else {
-                    (
-                        header.uid()?.to_string(),
-                        header.gid()?.to_string(),
-                    )
+                    (header.uid()?.to_string(), header.gid()?.to_string())
                 }
             } else {
-                (
-                    header.uid()?.to_string(),
-                    header.gid()?.to_string(),
-                )
+                (header.uid()?.to_string(), header.gid()?.to_string())
             };
         // UNIX tar has this as the minimum size of the Username/id Groupname/id + size
         // section of a listing the anything under 19 is padded over 19 grows and gets
         // padded with 1 space
         // Something in me feels like this could overflow stdout some how?
         let ugs_size: usize = 19;
-        let pad = ugs_size.saturating_sub(
-            u_val.len() + 1 + g_val.len() + 1 + header.size()?.to_string().len(),
-        );
+        let pad = ugs_size
+            .saturating_sub(u_val.len() + 1 + g_val.len() + 1 + header.size()?.to_string().len());
         let mut pad_string = String::new();
         // pad with spaces
         for _ in 0..=pad {
             pad_string.push(' ');
         }
         // construct the combo string with padding
-        let ugs = format!(
-            "{}/{}{}{}",
-            u_val,
-            g_val,
-            pad_string,
-            header.size()?
-        );
+        let ugs = format!("{}/{}{}{}", u_val, g_val, pad_string, header.size()?);
 
         // Wrap to jiff timestamps
         let mtime_zoned = Zoned::new(
             // TODO: More descriptive errors needed
-            Timestamp::new(header.mtime()?.try_into().expect("Couldnt convert mtime"
-            ), 0).map_err(|_| USimpleError::new(1, "Invalid mtime timestamp"))?,
+            Timestamp::new(
+                header.mtime()?.try_into().expect("Couldnt convert mtime"),
+                0,
+            )
+            .map_err(|_| USimpleError::new(1, "Invalid mtime timestamp"))?,
             TimeZone::system(),
         );
 

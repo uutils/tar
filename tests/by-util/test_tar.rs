@@ -3,7 +3,7 @@
 // For the full copyright and license information, please view the LICENSE
 // file that was distributed with this source code.
 
-use uutests::{at_and_ucmd, new_ucmd, util::TerminalSimulation};
+use uutests::{at_and_ucmd, new_ucmd};
 
 // Basic CLI Tests
 
@@ -166,8 +166,8 @@ fn test_list_archive_verbose() {
 
     let mut list_files = vec![];
 
-    for line in res.stdout_str().lines(){
-        if !line.is_empty(){ 
+    for line in res.stdout_str().lines() {
+        if !line.is_empty() {
             // rev, trim till whilespace, collect, split, rev(again), collect
             // to flip since file name is variable grab the last string in the
             // stdout line
@@ -185,5 +185,4 @@ fn test_list_archive_verbose() {
     }
 
     assert_eq!(file_names, list_files);
-
 }

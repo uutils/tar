@@ -1335,6 +1335,7 @@ name = "uu_tar"
 version = "0.0.1"
 dependencies = [
  "clap",
+ "jiff",
  "regex",
  "tar",
  "uucore",

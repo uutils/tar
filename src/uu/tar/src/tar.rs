@@ -5,9 +5,12 @@
 
 pub mod errors;
 mod operations;
+mod options;
 
 use clap::{arg, crate_version, ArgAction, Command};
-use std::path::{Path, PathBuf};
+use operations::operation::TarOperation;
+use options::TarParams;
+use std::path::PathBuf;
 use uucore::error::UResult;
 use uucore::format_usage;
 
@@ -33,43 +36,9 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
 
     let matches = uu_app().try_get_matches_from(args_to_parse)?;
 
-    let verbose = matches.get_flag("verbose");
+    let (op, options) = TarParams::with_operation(&matches)?;
 
-    // Handle extract operation
-    if matches.get_flag("extract") {
-        let archive_path = matches.get_one::<PathBuf>("file").ok_or_else(|| {
-            uucore::error::USimpleError::new(1, "option requires an argument -- 'f'")
-        })?;
-
-        return operations::extract::extract_archive(archive_path, verbose);
-    }
-
-    // Handle create operation
-    if matches.get_flag("create") {
-        let archive_path = matches.get_one::<PathBuf>("file").ok_or_else(|| {
-            uucore::error::USimpleError::new(1, "option requires an argument -- 'f'")
-        })?;
-
-        let files: Vec<&Path> = matches
-            .get_many::<PathBuf>("files")
-            .map(|v| v.map(|p| p.as_path()).collect())
-            .unwrap_or_default();
-
-        if files.is_empty() {
-            return Err(uucore::error::USimpleError::new(
-                1,
-                "Cowardly refusing to create an empty archive",
-            ));
-        }
-
-        return operations::create::create_archive(archive_path, &files, verbose);
-    }
-
-    // If no operation specified, show error
-    Err(uucore::error::USimpleError::new(
-        1,
-        "You must specify one of the '-c' or '-x' options",
-    ))
+    op.exec(&options)
 }
 
 #[allow(clippy::cognitive_complexity)]

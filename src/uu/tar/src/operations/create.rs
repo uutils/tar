@@ -4,11 +4,28 @@
 // file that was distributed with this source code.
 
 use crate::errors::TarError;
+use crate::operations::TarOperation;
+use crate::options::{TarOption, TarParams};
 use std::collections::VecDeque;
 use std::fs::{self, File};
 use std::path::{self, Path, PathBuf};
 use tar::Builder;
 use uucore::error::UResult;
+
+pub struct Create;
+
+impl TarOperation for Create {
+    fn exec(&self, options: &TarParams) -> UResult<()> {
+        create_archive(
+            options.archive(),
+            options.files().as_slice(),
+            options
+                .options()
+                .iter()
+                .any(|x| matches!(x, TarOption::Verbose)),
+        )
+    }
+}
 
 /// Create a tar archive from the specified files
 ///
@@ -24,7 +41,7 @@ use uucore::error::UResult;
 /// - The archive file cannot be created
 /// - Any input file cannot be read
 /// - Files cannot be added due to I/O or permission errors
-pub fn create_archive(archive_path: &Path, files: &[&Path], verbose: bool) -> UResult<()> {
+pub fn create_archive(archive_path: &Path, files: &[PathBuf], verbose: bool) -> UResult<()> {
     // Create the output file
     let file = File::create(archive_path).map_err(|e| {
         TarError::TarOperationError(format!(
@@ -38,7 +55,7 @@ pub fn create_archive(archive_path: &Path, files: &[&Path], verbose: bool) -> UR
     let mut builder = Builder::new(file);
 
     // Add each file or directory to the archive
-    for &path in files {
+    for path in files {
         // Check if path exists
         if !path.exists() {
             return Err(TarError::FileNotFound(path.display().to_string()).into());

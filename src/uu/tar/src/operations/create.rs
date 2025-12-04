@@ -62,13 +62,21 @@ pub fn create_archive(archive_path: &Path, files: &[&Path], verbose: bool) -> UR
             })?;
         } else {
             // For files, add them directly
-            builder.append_path(path).map_err(|e| {
-                TarError::TarOperationError(format!(
-                    "Failed to add file '{}': {}",
-                    path.display(),
-                    e
-                ))
-            })?;
+            let normalized_name = if path.is_absolute() {
+                println!("Removing leading `/' from member names");
+                path.strip_prefix("/").unwrap_or(path)
+            } else {
+                path
+            };
+            builder
+                .append_path_with_name(path, normalized_name)
+                .map_err(|e| {
+                    TarError::TarOperationError(format!(
+                        "Failed to add file '{}': {}",
+                        path.display(),
+                        e
+                    ))
+                })?;
         }
     }
 

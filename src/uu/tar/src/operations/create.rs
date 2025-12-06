@@ -5,7 +5,7 @@
 
 use crate::errors::TarError;
 use std::fs::File;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tar::Builder;
 use uucore::error::UResult;
 
@@ -62,12 +62,7 @@ pub fn create_archive(archive_path: &Path, files: &[&Path], verbose: bool) -> UR
             })?;
         } else {
             // For files, add them directly
-            let normalized_name = if path.is_absolute() {
-                println!("Removing leading `/' from member names");
-                path.strip_prefix("/").unwrap_or(path)
-            } else {
-                path
-            };
+            let normalized_name = normalize_path(path);
             builder
                 .append_path_with_name(path, normalized_name)
                 .map_err(|e| {
@@ -86,4 +81,30 @@ pub fn create_archive(archive_path: &Path, files: &[&Path], verbose: bool) -> UR
         .map_err(|e| TarError::TarOperationError(format!("Failed to finalize archive: {e}")))?;
 
     Ok(())
+}
+
+fn normalize_path(path: &Path) -> PathBuf {
+    let mut components = path.components().peekable();
+
+    let mut removed = PathBuf::new();
+    while let Some(component) = components.peek() {
+        match component {
+            std::path::Component::RootDir | std::path::Component::ParentDir => {
+                removed.push(component);
+                components.next();
+            }
+            _ => break,
+        }
+    }
+
+    if !removed.as_os_str().is_empty() {
+        println!("Removing leading `{}' from member names", removed.display());
+    }
+
+    let mut normalized = PathBuf::new();
+    for component in components {
+        normalized.push(component);
+    }
+
+    normalized
 }

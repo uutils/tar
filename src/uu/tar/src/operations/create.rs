@@ -5,6 +5,7 @@
 
 use crate::errors::TarError;
 use std::fs::File;
+use std::path::Component::{self, ParentDir, RootDir};
 use std::path::{Path, PathBuf};
 use tar::Builder;
 use uucore::error::UResult;
@@ -51,9 +52,26 @@ pub fn create_archive(archive_path: &Path, files: &[&Path], verbose: bool) -> UR
             return Err(TarError::FileNotFound(path.display().to_string()).into());
         }
 
+        // Normalize path if needed (so far, handles only absolute paths)
+        let normalized_name = if let Some(normalized) = normalize_path(path) {
+            let original_components: Vec<Component> = path.components().collect();
+            let normalized_components: Vec<Component> = normalized.components().collect();
+            if original_components.len() > normalized_components.len() {
+                let removed: PathBuf = original_components
+                    [..original_components.len() - normalized_components.len()]
+                    .iter()
+                    .collect();
+                println!("Removing leading `{}' from member names", removed.display());
+            }
+
+            normalized
+        } else {
+            path.to_path_buf()
+        };
+
         // If it's a directory, recursively add all contents
         if path.is_dir() {
-            builder.append_dir_all(path, path).map_err(|e| {
+            builder.append_dir_all(normalized_name, path).map_err(|e| {
                 TarError::TarOperationError(format!(
                     "Failed to add directory '{}': {}",
                     path.display(),
@@ -62,7 +80,6 @@ pub fn create_archive(archive_path: &Path, files: &[&Path], verbose: bool) -> UR
             })?;
         } else {
             // For files, add them directly
-            let normalized_name = normalize_path(path);
             builder
                 .append_path_with_name(path, normalized_name)
                 .map_err(|e| {
@@ -83,28 +100,14 @@ pub fn create_archive(archive_path: &Path, files: &[&Path], verbose: bool) -> UR
     Ok(())
 }
 
-fn normalize_path(path: &Path) -> PathBuf {
-    let mut components = path.components().peekable();
-
-    let mut removed = PathBuf::new();
-    while let Some(component) = components.peek() {
-        match component {
-            std::path::Component::RootDir | std::path::Component::ParentDir => {
-                removed.push(component);
-                components.next();
-            }
-            _ => break,
-        }
+fn normalize_path(path: &Path) -> Option<PathBuf> {
+    if path.is_absolute() {
+        Some(
+            path.components()
+                .filter(|c| !matches!(c, RootDir | ParentDir))
+                .collect::<PathBuf>(),
+        )
+    } else {
+        None
     }
-
-    if !removed.as_os_str().is_empty() {
-        println!("Removing leading `{}' from member names", removed.display());
-    }
-
-    let mut normalized = PathBuf::new();
-    for component in components {
-        normalized.push(component);
-    }
-
-    normalized
 }

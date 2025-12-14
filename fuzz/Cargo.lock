@@ -108,17 +108,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1b8e56985ec62d17e9c1001dc89c88ecd7dc08e47eba5ec7c29c7b5eeecde967"
 
 [[package]]
-name = "bstr"
-version = "1.12.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "234113d19d0d7d613b40e86fb654acf958910802bcceab913a4f9e7cda03b1a4"
-dependencies = [
- "memchr",
- "regex-automata",
- "serde",
-]
-
-[[package]]
 name = "bumpalo"
 version = "3.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -515,12 +504,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "number_prefix"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "830b246a0e5f20af87141b25c173cd1b609bd7779a4617d6ec582abaf90870f3"
-
-[[package]]
 name = "once_cell"
 version = "1.21.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -892,30 +875,7 @@ dependencies = [
  "clap",
  "regex",
  "tar",
- "uucore 0.4.0",
-]
-
-[[package]]
-name = "uucore"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2003164a38a7f39da1de103a70fa66b745f572f0045ec261481539516c0a8a0e"
-dependencies = [
- "bstr",
- "clap",
- "fluent",
- "fluent-bundle",
- "fluent-syntax",
- "libc",
- "nix",
- "number_prefix",
- "os_display",
- "phf",
- "procfs",
- "thiserror",
- "unic-langid",
- "uucore_procs 0.4.0",
- "wild",
+ "uucore",
 ]
 
 [[package]]
@@ -930,6 +890,7 @@ dependencies = [
  "fluent-bundle",
  "fluent-syntax",
  "glob",
+ "libc",
  "nix",
  "num-traits",
  "os_display",
@@ -937,7 +898,7 @@ dependencies = [
  "procfs",
  "thiserror",
  "unic-langid",
- "uucore_procs 0.5.0",
+ "uucore_procs",
  "wild",
 ]
 
@@ -952,18 +913,8 @@ dependencies = [
  "similar",
  "tempfile",
  "uu_tar",
- "uucore 0.4.0",
+ "uucore",
  "uufuzz",
-]
-
-[[package]]
-name = "uucore_procs"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c76f0308f7810d915246a39748e7f5d64e43e6bb9d6c8107224f9d741aefc375"
-dependencies = [
- "proc-macro2",
- "quote",
 ]
 
 [[package]]
@@ -987,7 +938,7 @@ dependencies = [
  "rand",
  "similar",
  "tempfile",
- "uucore 0.5.0",
+ "uucore",
 ]
 
 [[package]]

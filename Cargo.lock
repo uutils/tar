@@ -118,17 +118,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bstr"
-version = "1.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "63044e1ae8e69f3b5a92c736ca6269b8d12fa7efe39bf34ddb06d102cf0e2cab"
-dependencies = [
- "memchr",
- "regex-automata",
- "serde",
-]
-
-[[package]]
 name = "bumpalo"
 version = "3.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -406,7 +395,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -522,12 +511,6 @@ name = "hashbrown"
 version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5419bdc4f6a9207fbeba6d11b604d481addf78ecd10c11ad51e76c2f6482748d"
-
-[[package]]
-name = "hex"
-version = "0.4.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
 name = "hmac"
@@ -780,12 +763,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "number_prefix"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "830b246a0e5f20af87141b25c173cd1b609bd7779a4617d6ec582abaf90870f3"
-
-[[package]]
 name = "once_cell"
 version = "1.21.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -917,30 +894,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "procfs"
-version = "0.18.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "25485360a54d6861439d60facef26de713b1e126bf015ec8f98239467a2b82f7"
-dependencies = [
- "bitflags",
- "chrono",
- "flate2",
- "procfs-core",
- "rustix",
-]
-
-[[package]]
-name = "procfs-core"
-version = "0.18.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e6401bf7b6af22f78b563665d15a22e9aef27775b79b149a66ca022468a4e405"
-dependencies = [
- "bitflags",
- "chrono",
- "hex",
-]
-
-[[package]]
 name = "quote"
 version = "1.0.41"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1053,7 +1006,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -1214,7 +1167,7 @@ dependencies = [
  "tempfile",
  "textwrap",
  "uu_tar",
- "uucore 0.4.0",
+ "uucore",
  "uuhelp_parser",
  "uutests",
  "xattr",
@@ -1231,7 +1184,7 @@ dependencies = [
  "getrandom",
  "once_cell",
  "rustix",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -1384,30 +1337,7 @@ dependencies = [
  "clap",
  "regex",
  "tar",
- "uucore 0.4.0",
-]
-
-[[package]]
-name = "uucore"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2003164a38a7f39da1de103a70fa66b745f572f0045ec261481539516c0a8a0e"
-dependencies = [
- "bstr",
- "clap",
- "fluent",
- "fluent-bundle",
- "fluent-syntax",
- "libc",
- "nix",
- "number_prefix",
- "os_display",
- "phf",
- "procfs",
- "thiserror",
- "unic-langid",
- "uucore_procs 0.4.0",
- "wild",
+ "uucore",
 ]
 
 [[package]]
@@ -1429,18 +1359,8 @@ dependencies = [
  "thiserror",
  "time",
  "unic-langid",
- "uucore_procs 0.5.0",
+ "uucore_procs",
  "wild",
-]
-
-[[package]]
-name = "uucore_procs"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c76f0308f7810d915246a39748e7f5d64e43e6bb9d6c8107224f9d741aefc375"
-dependencies = [
- "proc-macro2",
- "quote",
 ]
 
 [[package]]
@@ -1473,7 +1393,7 @@ dependencies = [
  "regex",
  "rlimit",
  "tempfile",
- "uucore 0.5.0",
+ "uucore",
  "xattr",
 ]
 
@@ -1621,15 +1541,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f2f500e4d28234f72040990ec9d39e3a6b950f9f22d3dba18416c35882612bcb"
 dependencies = [
  "windows-targets 0.53.5",
-]
-
-[[package]]
-name = "windows-sys"
-version = "0.61.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ae137229bcbd6cdf0f7b80a31df61766145077ddf49416a728b02cb3921ff3fc"
-dependencies = [
- "windows-link",
 ]
 
 [[package]]

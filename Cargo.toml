@@ -23,7 +23,7 @@ build = "build.rs"
 
 [features]
 default = ["feat_common_core"]
-uudoc = ["zip", "uuhelp_parser"]
+uudoc = ["zip"]
 
 feat_common_core = [
   "tar",
@@ -44,7 +44,6 @@ phf_codegen = "0.13.0"
 rand = { version = "0.10.0" }
 regex = "1.10.4"
 uucore = "0.6.0"
-uuhelp_parser = "0.2.0"
 uutests = "0.6.0"
 tar = "0.4"
 tempfile = "3.10.1"
@@ -61,7 +60,6 @@ phf = { workspace = true }
 textwrap = { workspace = true }
 uutests = { workspace = true }
 uucore = { workspace = true }
-uuhelp_parser = { workspace = true, optional = true }
 zip = { workspace = true, optional = true }
 
 tar = { optional = true, version = "0.0.1", package = "uu_tar", path = "src/uu/tar" }

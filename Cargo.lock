@@ -1271,7 +1271,6 @@ dependencies = [
  "textwrap",
  "uu_tar",
  "uucore",
- "uuhelp_parser",
  "uutests",
  "xattr",
  "zip",
@@ -1487,12 +1486,6 @@ dependencies = [
  "proc-macro2",
  "quote",
 ]
-
-[[package]]
-name = "uuhelp_parser"
-version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9c9e4945611996e885dc4eeae23f3d6f20cfb6e8f4bad4985c2222bbcf9a9745"
 
 [[package]]
 name = "uutests"

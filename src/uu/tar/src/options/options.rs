@@ -15,6 +15,16 @@ pub struct TarParams {
     options: Vec<TarOption>,
 }
 
+impl Default for TarParams {
+    fn default() -> TarParams {
+        Self {
+            archive: PathBuf::default(),
+            options: Vec::new(),
+            files: Vec::new(),
+        }
+    }
+}
+
 impl From<&ArgMatches> for TarParams {
     fn from(matches: &ArgMatches) -> TarParams {
         let mut ops = Self::default();

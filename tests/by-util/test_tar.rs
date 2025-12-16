@@ -3,6 +3,8 @@
 // For the full copyright and license information, please view the LICENSE
 // file that was distributed with this source code.
 
+use std::path;
+
 use uutests::{at_and_ucmd, new_ucmd};
 
 // Basic CLI Tests
@@ -28,6 +30,31 @@ fn test_version() {
         .succeeds()
         .code_is(0)
         .stdout_contains("tar");
+}
+
+#[test]
+fn test_verbose() {
+    let (at, mut ucmd) = at_and_ucmd!();
+
+    let separator = path::MAIN_SEPARATOR;
+    let dir1_path = "dir1";
+    let dir2_path = format!("{dir1_path}{separator}dir2");
+    let file1_path = format!("{dir1_path}{separator}file1.txt");
+    let file2_path = format!("{dir2_path}{separator}file2.txt");
+
+    at.mkdir(&dir1_path);
+    at.mkdir(&dir2_path);
+    at.write(&file1_path, "test content 1");
+    at.write(&file2_path, "test content 2");
+
+    ucmd.args(&["-cvf", "archive.tar", &dir1_path])
+        .succeeds()
+        .stdout_contains(format!(
+            r#"{dir1_path}{separator}
+{dir2_path}{separator}
+{file2_path}
+{file1_path}"#
+        ));
 }
 
 // Create operation tests

@@ -42,12 +42,12 @@ fn test_verbose() {
     let file1_path = format!("{dir1_path}{separator}file1.txt");
     let file2_path = format!("{dir2_path}{separator}file2.txt");
 
-    at.mkdir(&dir1_path);
+    at.mkdir(dir1_path);
     at.mkdir(&dir2_path);
     at.write(&file1_path, "test content 1");
     at.write(&file2_path, "test content 2");
 
-    ucmd.args(&["-cvf", "archive.tar", &dir1_path])
+    ucmd.args(&["-cvf", "archive.tar", dir1_path])
         .succeeds()
         .stdout_contains(dir1_path)
         .stdout_contains(dir2_path)

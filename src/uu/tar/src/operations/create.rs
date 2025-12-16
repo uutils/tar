@@ -9,6 +9,7 @@ use crate::options::{TarOption, TarParams};
 use std::fs::File;
 use std::path::Path;
 use std::path::PathBuf;
+use std::collections::VecDeque;
 use tar::Builder;
 use uucore::error::UResult;
 
@@ -59,14 +60,26 @@ pub fn create_archive(archive_path: &Path, files: &[PathBuf], verbose: bool) -> 
     }
 
     // Add each file or directory to the archive
-    for path in files {
-        if verbose {
-            println!("{}", path.display());
-        }
-
+    for &path in files {
         // Check if path exists
         if !path.exists() {
             return Err(TarError::FileNotFound(path.display().to_string()).into());
+        }
+
+        if verbose {
+            let to_print = get_tree(path)?
+                .iter()
+                .map(|p| (p.is_dir(), p.display().to_string()))
+                .map(|(is_dir, path)| {
+                    if is_dir {
+                        format!("{}{}", path, path::MAIN_SEPARATOR)
+                    } else {
+                        path
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join("\n");
+            println!("{to_print}");
         }
 
         // If it's a directory, recursively add all contents
@@ -96,4 +109,22 @@ pub fn create_archive(archive_path: &Path, files: &[PathBuf], verbose: bool) -> 
         .map_err(|e| TarError::TarOperationError(format!("Failed to finalize archive: {e}")))?;
 
     Ok(())
+}
+
+fn get_tree(path: &Path) -> Result<Vec<PathBuf>, std::io::Error> {
+    let mut paths = Vec::new();
+    let mut stack = VecDeque::new();
+    stack.push_back(path.to_path_buf());
+
+    while let Some(current) = stack.pop_back() {
+        paths.push(current.clone());
+        if current.is_dir() {
+            for entry in fs::read_dir(current)? {
+                let child = entry?.path();
+                stack.push_back(child);
+            }
+        }
+    }
+
+    Ok(paths)
 }

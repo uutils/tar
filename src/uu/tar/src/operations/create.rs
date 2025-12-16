@@ -6,10 +6,9 @@
 use crate::errors::TarError;
 use crate::operations::TarOperation;
 use crate::options::{TarOption, TarParams};
-use std::fs::File;
-use std::path::Path;
-use std::path::PathBuf;
 use std::collections::VecDeque;
+use std::fs::{self, File};
+use std::path::{self, Path, PathBuf};
 use tar::Builder;
 use uucore::error::UResult;
 
@@ -60,7 +59,7 @@ pub fn create_archive(archive_path: &Path, files: &[PathBuf], verbose: bool) -> 
     }
 
     // Add each file or directory to the archive
-    for &path in files {
+    for path in files {
         // Check if path exists
         if !path.exists() {
             return Err(TarError::FileNotFound(path.display().to_string()).into());

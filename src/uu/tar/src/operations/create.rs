@@ -37,10 +37,6 @@ pub fn create_archive(archive_path: &Path, files: &[&Path], verbose: bool) -> UR
     // Create Builder instance
     let mut builder = Builder::new(file);
 
-    if verbose {
-        println!("Creating archive: {}", archive_path.display());
-    }
-
     // Add each file or directory to the archive
     for &path in files {
         // Check if path exists

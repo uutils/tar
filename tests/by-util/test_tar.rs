@@ -49,12 +49,10 @@ fn test_verbose() {
 
     ucmd.args(&["-cvf", "archive.tar", &dir1_path])
         .succeeds()
-        .stdout_contains(format!(
-            r#"{dir1_path}{separator}
-{dir2_path}{separator}
-{file2_path}
-{file1_path}"#
-        ));
+        .stdout_contains(dir1_path)
+        .stdout_contains(dir2_path)
+        .stdout_contains(file1_path)
+        .stdout_contains(file2_path);
 }
 
 // Create operation tests

@@ -8,25 +8,15 @@ use uucore::error::UResult;
 /// command line arguments. That changes the current execution of
 /// tar.
 #[allow(dead_code)]
+#[derive(Default)]
 pub struct TarParams {
     archive: PathBuf,
     files: Vec<PathBuf>,
     options: Vec<TarOption>,
 }
 
-impl Default for TarParams {
-    fn default() -> TarParams {
-        Self {
-            archive: PathBuf::default(),
-            options: Vec::new(),
-            files: Vec::new(),
-        }
-    }
-}
-
 impl From<&ArgMatches> for TarParams {
     fn from(matches: &ArgMatches) -> TarParams {
-
         let mut ops = Self::default();
 
         // -v --verbose

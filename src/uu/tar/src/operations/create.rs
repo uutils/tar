@@ -4,9 +4,10 @@
 // file that was distributed with this source code.
 
 use crate::errors::TarError;
-use std::fs::File;
+use std::collections::VecDeque;
+use std::fs::{self, File};
 use std::path::Component::{self, ParentDir, RootDir};
-use std::path::{Path, PathBuf};
+use std::path::{self, Path, PathBuf};
 use tar::Builder;
 use uucore::error::UResult;
 
@@ -43,13 +44,25 @@ pub fn create_archive(archive_path: &Path, files: &[&Path], verbose: bool) -> UR
 
     // Add each file or directory to the archive
     for &path in files {
-        if verbose {
-            println!("{}", path.display());
-        }
-
         // Check if path exists
         if !path.exists() {
             return Err(TarError::FileNotFound(path.display().to_string()).into());
+        }
+      
+        if verbose {
+            let to_print = get_tree(path)?
+                .iter()
+                .map(|p| (p.is_dir(), p.display().to_string()))
+                .map(|(is_dir, path)| {
+                    if is_dir {
+                        format!("{}{}", path, path::MAIN_SEPARATOR)
+                    } else {
+                        path
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join("\n");
+            println!("{to_print}");
         }
 
         // Normalize path if needed (so far, handles only absolute paths)
@@ -98,6 +111,24 @@ pub fn create_archive(archive_path: &Path, files: &[&Path], verbose: bool) -> UR
         .map_err(|e| TarError::TarOperationError(format!("Failed to finalize archive: {e}")))?;
 
     Ok(())
+}
+
+fn get_tree(path: &Path) -> Result<Vec<PathBuf>, std::io::Error> {
+    let mut paths = Vec::new();
+    let mut stack = VecDeque::new();
+    stack.push_back(path.to_path_buf());
+
+    while let Some(current) = stack.pop_back() {
+        paths.push(current.clone());
+        if current.is_dir() {
+            for entry in fs::read_dir(current)? {
+                let child = entry?.path();
+                stack.push_back(child);
+            }
+        }
+    }
+
+    Ok(paths)
 }
 
 fn normalize_path(path: &Path) -> Option<PathBuf> {

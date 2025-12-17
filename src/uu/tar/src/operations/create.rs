@@ -48,7 +48,7 @@ pub fn create_archive(archive_path: &Path, files: &[&Path], verbose: bool) -> UR
         if !path.exists() {
             return Err(TarError::FileNotFound(path.display().to_string()).into());
         }
-      
+
         if verbose {
             let to_print = get_tree(path)?
                 .iter()

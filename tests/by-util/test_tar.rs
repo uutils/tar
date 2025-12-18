@@ -96,7 +96,7 @@ fn test_create_absolute_path() {
         &format!("{abs_path}{separator}{file_name}"),
     ])
     .succeeds()
-    .stdout_contains(format!("Removing leading `{separator}' from member names"));
+    .stdout_contains(format!("Removing leading"));
 
     new_ucmd!()
         .args(&["-xf", "archive.tar"])

@@ -3,7 +3,7 @@
 // For the full copyright and license information, please view the LICENSE
 // file that was distributed with this source code.
 
-use std::path;
+use std::path::{self, PathBuf};
 
 use uutests::{at_and_ucmd, new_ucmd};
 
@@ -85,15 +85,15 @@ fn test_create_multiple_files() {
 fn test_create_absolute_path() {
     let (at, mut ucmd) = at_and_ucmd!();
 
-    let separator = path::MAIN_SEPARATOR;
-    let abs_path = at.root_dir_resolved();
+    let separator = path::MAIN_SEPARATOR.to_string();
+    let abs_path = PathBuf::from(at.root_dir_resolved());
     let file_name = "file1.txt";
 
     at.write(file_name, "content1");
     ucmd.args(&[
         "-cf",
         "archive.tar",
-        &format!("{abs_path}{separator}{file_name}"),
+        &format!("{}{separator}{file_name}", abs_path.to_string_lossy()),
     ])
     .succeeds()
     .stdout_contains("Removing leading");
@@ -105,7 +105,12 @@ fn test_create_absolute_path() {
 
     let expected_path = format!(
         "{}{separator}{file_name}",
-        abs_path.strip_prefix(separator).unwrap()
+        abs_path
+            .components()
+            .filter(|c| !matches!(c, path::Component::RootDir | path::Component::Prefix(_)))
+            .map(|c| c.as_os_str().display().to_string())
+            .collect::<Vec<_>>()
+            .join(&separator),
     );
     assert!(at.file_exists(expected_path));
 }

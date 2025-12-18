@@ -6,7 +6,7 @@
 use crate::errors::TarError;
 use std::collections::VecDeque;
 use std::fs::{self, File};
-use std::path::Component::{self, ParentDir, RootDir};
+use std::path::Component::{self, ParentDir, Prefix, RootDir};
 use std::path::{self, Path, PathBuf};
 use tar::Builder;
 use uucore::error::UResult;
@@ -135,7 +135,7 @@ fn normalize_path(path: &Path) -> Option<PathBuf> {
     if path.is_absolute() {
         Some(
             path.components()
-                .filter(|c| !matches!(c, RootDir | ParentDir))
+                .filter(|c| !matches!(c, RootDir | ParentDir | Prefix(_)))
                 .collect::<PathBuf>(),
         )
     } else {

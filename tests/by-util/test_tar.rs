@@ -81,6 +81,35 @@ fn test_create_multiple_files() {
     assert!(at.file_exists("archive.tar"));
 }
 
+#[test]
+fn test_create_absolute_path() {
+    let (at, mut ucmd) = at_and_ucmd!();
+
+    let separator = path::MAIN_SEPARATOR;
+    let abs_path = at.root_dir_resolved();
+    let file_name = "file1.txt";
+
+    at.write(file_name, "content1");
+    ucmd.args(&[
+        "-cf",
+        "archive.tar",
+        &format!("{abs_path}{separator}{file_name}"),
+    ])
+    .succeeds()
+    .stdout_contains(format!("Removing leading `{separator}' from member names"));
+
+    new_ucmd!()
+        .args(&["-xf", "archive.tar"])
+        .current_dir(at.as_string())
+        .succeeds();
+
+    let expected_path = format!(
+        "{}{separator}{file_name}",
+        abs_path.strip_prefix(separator).unwrap()
+    );
+    assert!(at.file_exists(expected_path));
+}
+
 // Extract operation tests
 
 #[test]

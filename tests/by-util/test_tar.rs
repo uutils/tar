@@ -85,34 +85,15 @@ fn test_create_multiple_files() {
 fn test_create_absolute_path() {
     let (at, mut ucmd) = at_and_ucmd!();
 
-    let separator = path::MAIN_SEPARATOR.to_string();
-    let abs_path = PathBuf::from(at.root_dir_resolved());
-    let file_name = "file1.txt";
+    let mut file_abs_path = PathBuf::from(at.root_dir_resolved());
+    file_abs_path.push("file1.txt");
 
-    at.write(file_name, "content1");
-    ucmd.args(&[
-        "-cf",
-        "archive.tar",
-        &format!("{}{separator}{file_name}", abs_path.to_string_lossy()),
-    ])
-    .succeeds()
-    .stdout_contains("Removing leading");
+    at.write(&file_abs_path.display().to_string(), "content1");
+    ucmd.args(&["-cf", "archive.tar", &file_abs_path.display().to_string()])
+        .succeeds()
+        .stdout_contains("Removing leading");
 
-    new_ucmd!()
-        .args(&["-xf", "archive.tar"])
-        .current_dir(at.as_string())
-        .succeeds();
-
-    let expected_path = format!(
-        "{}{separator}{file_name}",
-        abs_path
-            .components()
-            .filter(|c| !matches!(c, path::Component::RootDir | path::Component::Prefix(_)))
-            .map(|c| c.as_os_str().display().to_string())
-            .collect::<Vec<_>>()
-            .join(&separator),
-    );
-    assert!(at.file_exists(expected_path));
+    assert!(at.file_exists("archive.tar"));
 }
 
 // Extract operation tests
@@ -172,4 +153,30 @@ fn test_extract_nonexistent_archive() {
         .args(&["-xf", "nonexistent.tar"])
         .fails()
         .code_is(2);
+}
+
+#[test]
+fn test_extract_created_from_absolute_path() {
+    let (at, mut ucmd) = at_and_ucmd!();
+
+    let mut file_abs_path = PathBuf::from(at.root_dir_resolved());
+    file_abs_path.push("file1.txt");
+
+    at.write(&file_abs_path.display().to_string(), "content1");
+    ucmd.args(&["-cf", "archive.tar", &file_abs_path.display().to_string()])
+        .succeeds();
+
+    new_ucmd!()
+        .args(&["-xf", "archive.tar"])
+        .current_dir(at.as_string())
+        .succeeds();
+
+    let expected_path = file_abs_path
+        .components()
+        .filter(|c| !matches!(c, path::Component::RootDir | path::Component::Prefix(_)))
+        .map(|c| c.as_os_str().display().to_string())
+        .collect::<Vec<_>>()
+        .join(&path::MAIN_SEPARATOR.to_string());
+
+    assert!(at.file_exists(expected_path));
 }

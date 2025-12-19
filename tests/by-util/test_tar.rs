@@ -33,7 +33,7 @@ fn test_version() {
 }
 
 #[test]
-fn test_verbose() {
+fn test_create_dir_verbose() {
     let (at, mut ucmd) = at_and_ucmd!();
 
     let separator = path::MAIN_SEPARATOR;

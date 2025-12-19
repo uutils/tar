@@ -176,7 +176,7 @@ fn test_extract_created_from_absolute_path() {
         .filter(|c| !matches!(c, path::Component::RootDir | path::Component::Prefix(_)))
         .map(|c| c.as_os_str().display().to_string())
         .collect::<Vec<_>>()
-        .join(&std::path::MAIN_SEPARATOR.to_string());
+        .join(std::path::MAIN_SEPARATOR_STR);
 
     assert!(at.file_exists(expected_path));
 }

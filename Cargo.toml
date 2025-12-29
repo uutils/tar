@@ -51,6 +51,7 @@ tempfile = "3.10.1"
 textwrap = { version = "0.16.1", features = ["terminal_size"] }
 xattr = "1.3.1"
 zip = "7.0"
+jiff = "0.2.16"
 
 [dependencies]
 clap = { workspace = true }
@@ -64,6 +65,8 @@ uucore = { workspace = true }
 uuhelp_parser = { workspace = true, optional = true }
 zip = { workspace = true, optional = true }
 tar = { optional = true, version = "0.0.1", package = "uu_tar", path = "src/uu/tar" }
+jiff = { workspace = true }
+
 
 [dev-dependencies]
 chrono = { workspace = true }

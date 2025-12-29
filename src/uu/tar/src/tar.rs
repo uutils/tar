@@ -40,7 +40,6 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
 
     op.exec(&options)
 }
-
 #[allow(clippy::cognitive_complexity)]
 pub fn uu_app() -> Command {
     Command::new(uucore::util_name())

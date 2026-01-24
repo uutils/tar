@@ -1,0 +1,53 @@
+name: GnuTests
+
+on:
+  pull_request:
+  push:
+    branches:
+      - '*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  native:
+    name: Run GNU tests (native)
+    runs-on: ubuntu-24.04
+    steps:
+    - name: Checkout code (uutils)
+      uses: actions/checkout@v4
+      with:
+        path: 'uutils'
+        persist-credentials: false
+    
+    - uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: stable
+        components: rustfmt
+    
+    - uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: "./uutils -> target"
+    
+    - name: Install dependencies
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y autoconf autopoint bison texinfo gperf gcc g++ gdb python3-pyinotify jq valgrind libacl1-dev libattr1-dev libcap-dev libselinux1-dev attr quilt gettext
+    
+    - name: Build binaries and GNU tar
+      shell: bash
+      run: |
+        cd 'uutils'
+        # This script will clone GNU tar and build everything
+        bash util/build-gnu.sh --release-build
+
+    - name: Run GNU tests
+      shell: bash
+      run: |
+        cd 'uutils'
+        bash util/run-gnu-test.sh

@@ -24,6 +24,8 @@ jobs:
   style_format:
     name: Style/format
     runs-on: ${{ matrix.job.os }}
+    env:
+      CARGO_INCREMENTAL: 0
     strategy:
       fail-fast: false
       matrix:
@@ -31,10 +33,6 @@ jobs:
           - { os: ubuntu-latest, features: feat_os_unix }
     steps:
       - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: stable
-          components: rustfmt
       - uses: Swatinem/rust-cache@v2
       - name: Initialize workflow variables
         id: vars
@@ -65,6 +63,7 @@ jobs:
     env:
       SCCACHE_GHA_ENABLED: "true"
       RUSTC_WRAPPER: "sccache"
+      CARGO_INCREMENTAL: 0
     strategy:
       fail-fast: false
       matrix:
@@ -74,10 +73,6 @@ jobs:
           - { os: windows-latest }
     steps:
       - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: stable
-          components: clippy
       - uses: Swatinem/rust-cache@v2
       - name: Run sccache-cache
         uses: mozilla-actions/sccache-action@v0.0.9

@@ -24,7 +24,7 @@ cargo run --release
 
 ## Testing
 
-The tar application has a focused testing philosophy that separates concerns between the application (CLI interface, error handling, user experience) and the underlying tar-rs library (archive format correctness, encoding, permissions).
+The tar application has a focused testing philosophy that separates concerns between the application (CLI interface, error handling, user experience) and the underlying `tar-rs` library (archive format correctness, encoding, permissions).
 
 See [tests/README.md](tests/README.md) for comprehensive documentation.
 

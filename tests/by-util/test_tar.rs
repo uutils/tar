@@ -7,16 +7,19 @@ use std::path;
 
 use uutests::{at_and_ucmd, new_ucmd};
 
-// -----------------------------------------------------------------------------
-// 1. Basic CLI Tests
-// -----------------------------------------------------------------------------
+/// Size of a single tar block in bytes (per POSIX specification).
+// TODO: This should be exported from the tar crate instead of being redefined here.
+// The tar crate has `BLOCK_SIZE` defined but it's marked `pub(crate)`.
+const TAR_BLOCK_SIZE: usize = 512;
+
+// Basic CLI tests
 
 #[test]
 fn test_invalid_arg() {
     new_ucmd!()
         .arg("--definitely-invalid")
         .fails()
-        .code_is(1) // TODO: return the usage exit code (64) for invalid arguments
+        .code_is(64)
         .stderr_contains("unexpected argument");
 }
 
@@ -39,9 +42,30 @@ fn test_version() {
 }
 
 #[test]
+fn test_conflicting_operations() {
+    new_ucmd!()
+        .args(&["-c", "-x", "-f", "archive.tar"])
+        .fails()
+        .code_is(2)
+        .stderr_contains("cannot be used with");
+}
+
+#[test]
+fn test_no_operation_specified() {
+    new_ucmd!()
+        .args(&["-f", "archive.tar"])
+        .fails()
+        .code_is(2)
+        .stderr_contains("must specify one");
+}
+
+// Create operation tests
+
+#[test]
 fn test_verbose() {
     let (at, mut ucmd) = at_and_ucmd!();
 
+    // TODO(jeffbailey): Use PathBuf here instead
     let separator = path::MAIN_SEPARATOR;
     let dir1_path = "dir1";
     let dir2_path = format!("{dir1_path}{separator}dir2");
@@ -62,27 +86,6 @@ fn test_verbose() {
 }
 
 #[test]
-fn test_conflicting_operations() {
-    new_ucmd!()
-        .args(&["-c", "-x", "-f", "archive.tar"])
-        .fails()
-        .code_is(2);
-}
-
-#[test]
-fn test_no_operation_specified() {
-    new_ucmd!()
-        .args(&["-f", "archive.tar"])
-        .fails()
-        .code_is(1) // TODO: align with GNU tar by returning exit code 64
-        .stderr_contains("must specify one");
-}
-
-// -----------------------------------------------------------------------------
-// 2. Create Operation Tests
-// -----------------------------------------------------------------------------
-
-#[test]
 fn test_create_single_file() {
     let (at, mut ucmd) = at_and_ucmd!();
 
@@ -90,10 +93,10 @@ fn test_create_single_file() {
 
     ucmd.args(&["-cf", "archive.tar", "file1.txt"])
         .succeeds()
-        .no_stderr();
+        .no_output();
 
     assert!(at.file_exists("archive.tar"));
-    assert!(at.read_bytes("archive.tar").len() > 512); // Basic sanity check
+    assert!(at.read_bytes("archive.tar").len() > TAR_BLOCK_SIZE); // Basic sanity check
 }
 
 #[test]
@@ -106,10 +109,10 @@ fn test_create_multiple_files() {
 
     ucmd.args(&["-cf", "archive.tar", "file1.txt", "file2.txt", "file3.txt"])
         .succeeds()
-        .no_stderr();
+        .no_output();
 
     assert!(at.file_exists("archive.tar"));
-    assert!(at.read_bytes("archive.tar").len() > 512); // Basic sanity check
+    assert!(at.read_bytes("archive.tar").len() > TAR_BLOCK_SIZE); // Basic sanity check
 }
 
 #[test]
@@ -124,10 +127,10 @@ fn test_create_directory() {
 
     ucmd.args(&["-cf", "archive.tar", "dir1"])
         .succeeds()
-        .no_stderr();
+        .no_output();
 
     assert!(at.file_exists("archive.tar"));
-    assert!(at.read_bytes("archive.tar").len() > 512); // Basic sanity check
+    assert!(at.read_bytes("archive.tar").len() > TAR_BLOCK_SIZE); // Basic sanity check
 }
 
 #[test]
@@ -148,23 +151,20 @@ fn test_create_empty_archive_fails() {
     new_ucmd!()
         .args(&["-cf", "archive.tar"])
         .fails()
-        .code_is(1) // TODO: propagate usage exit code 64 once empty archive handling is fixed
+        .code_is(2)
         .stderr_contains("empty archive");
 }
 
 #[test]
 fn test_create_nonexistent_file_fails() {
-    let (_at, mut ucmd) = at_and_ucmd!();
-
-    ucmd.args(&["-cf", "archive.tar", "nonexistent.txt"])
+    new_ucmd!()
+        .args(&["-cf", "archive.tar", "nonexistent.txt"])
         .fails()
         .code_is(2)
         .stderr_contains("nonexistent.txt");
 }
 
-// -----------------------------------------------------------------------------
-// 3. Extract Operation Tests
-// -----------------------------------------------------------------------------
+// Extract operation tests
 
 #[test]
 fn test_extract_single_file() {
@@ -183,7 +183,7 @@ fn test_extract_single_file() {
         .arg(at.plus("archive.tar"))
         .current_dir(at.as_string())
         .succeeds()
-        .no_stderr();
+        .no_output();
 
     assert!(at.file_exists("original.txt"));
     assert_eq!(at.read("original.txt"), "test content");
@@ -193,21 +193,36 @@ fn test_extract_single_file() {
 fn test_extract_verbose() {
     let (at, mut ucmd) = at_and_ucmd!();
 
-    // Create an archive
-    at.write("file1.txt", "content");
-    ucmd.args(&["-cf", "archive.tar", "file1.txt"]).succeeds();
+    // Create an archive with multiple files
+    at.write("file1.txt", "content1");
+    at.write("file2.txt", "content2");
+    at.write("file3.txt", "content3");
+
+    ucmd.args(&["-cf", "archive.tar", "file1.txt", "file2.txt", "file3.txt"])
+        .succeeds();
 
     at.remove("file1.txt");
+    at.remove("file2.txt");
+    at.remove("file3.txt");
 
-    // Extract with verbose (extracts to current directory)
-    new_ucmd!()
+    // Extract with verbose
+    let result = new_ucmd!()
         .arg("-xvf")
         .arg(at.plus("archive.tar"))
         .current_dir(at.as_string())
-        .succeeds()
-        .stdout_contains("file1.txt");
+        .succeeds();
 
+    let stdout = result.stdout_str();
+
+    // Verify all files are listed in verbose output
+    assert!(stdout.contains("file1.txt"));
+    assert!(stdout.contains("file2.txt"));
+    assert!(stdout.contains("file3.txt"));
+
+    // Verify files were extracted
     assert!(at.file_exists("file1.txt"));
+    assert!(at.file_exists("file2.txt"));
+    assert!(at.file_exists("file3.txt"));
 }
 
 #[test]
@@ -262,8 +277,8 @@ fn test_extract_directory_structure() {
     // Remove directory contents and directory itself
     at.remove("testdir/subdir/file2.txt");
     at.remove("testdir/file1.txt");
-    std::fs::remove_dir(at.plus("testdir/subdir")).unwrap();
-    std::fs::remove_dir(at.plus("testdir")).unwrap();
+    at.rmdir("testdir/subdir");
+    at.rmdir("testdir");
 
     // Extract (extracts to current directory)
     new_ucmd!()
@@ -281,120 +296,15 @@ fn test_extract_directory_structure() {
     assert_eq!(at.read("testdir/subdir/file2.txt"), "content2");
 }
 
-// -----------------------------------------------------------------------------
-// 4. Round-trip Tests
-// -----------------------------------------------------------------------------
-
-#[test]
-fn test_roundtrip_single_file() {
-    let (at, mut ucmd) = at_and_ucmd!();
-
-    // Create a file
-    at.write("file.txt", "test content");
-
-    // Create archive
-    ucmd.args(&["-cf", "archive.tar", "file.txt"]).succeeds();
-
-    // Remove original
-    at.remove("file.txt");
-
-    // Extract
-    new_ucmd!()
-        .arg("-xf")
-        .arg(at.plus("archive.tar"))
-        .current_dir(at.as_string())
-        .succeeds();
-
-    // Verify content is identical
-    assert!(at.file_exists("file.txt"));
-    assert_eq!(at.read("file.txt"), "test content");
-}
-
-#[test]
-fn test_roundtrip_multiple_files() {
-    let (at, mut ucmd) = at_and_ucmd!();
-
-    // Create multiple files with different content
-    at.write("file1.txt", "content one");
-    at.write("file2.txt", "content two");
-    at.write("file3.txt", "content three");
-
-    // Create archive
-    ucmd.args(&["-cf", "archive.tar", "file1.txt", "file2.txt", "file3.txt"])
-        .succeeds();
-
-    // Remove originals
-    at.remove("file1.txt");
-    at.remove("file2.txt");
-    at.remove("file3.txt");
-
-    // Extract
-    new_ucmd!()
-        .arg("-xf")
-        .arg(at.plus("archive.tar"))
-        .current_dir(at.as_string())
-        .succeeds();
-
-    // Verify all contents are identical
-    assert_eq!(at.read("file1.txt"), "content one");
-    assert_eq!(at.read("file2.txt"), "content two");
-    assert_eq!(at.read("file3.txt"), "content three");
-}
-
-#[test]
-fn test_roundtrip_directory_structure() {
-    let (at, mut ucmd) = at_and_ucmd!();
-
-    // Create complex directory structure
-    at.mkdir("dir1");
-    at.write("dir1/file1.txt", "content1");
-    at.write("dir1/file2.txt", "content2");
-    at.mkdir("dir1/subdir");
-    at.write("dir1/subdir/file3.txt", "content3");
-    at.mkdir("dir1/subdir/deepdir");
-    at.write("dir1/subdir/deepdir/file4.txt", "content4");
-
-    // Create archive
-    ucmd.args(&["-cf", "archive.tar", "dir1"]).succeeds();
-
-    // Remove directory structure
-    at.remove("dir1/subdir/deepdir/file4.txt");
-    std::fs::remove_dir(at.plus("dir1/subdir/deepdir")).unwrap();
-    at.remove("dir1/subdir/file3.txt");
-    std::fs::remove_dir(at.plus("dir1/subdir")).unwrap();
-    at.remove("dir1/file1.txt");
-    at.remove("dir1/file2.txt");
-    std::fs::remove_dir(at.plus("dir1")).unwrap();
-
-    // Extract
-    new_ucmd!()
-        .arg("-xf")
-        .arg(at.plus("archive.tar"))
-        .current_dir(at.as_string())
-        .succeeds();
-
-    // Verify complete structure and contents
-    assert!(at.dir_exists("dir1"));
-    assert!(at.file_exists("dir1/file1.txt"));
-    assert!(at.file_exists("dir1/file2.txt"));
-    assert!(at.dir_exists("dir1/subdir"));
-    assert!(at.file_exists("dir1/subdir/file3.txt"));
-    assert!(at.dir_exists("dir1/subdir/deepdir"));
-    assert!(at.file_exists("dir1/subdir/deepdir/file4.txt"));
-
-    assert_eq!(at.read("dir1/file1.txt"), "content1");
-    assert_eq!(at.read("dir1/file2.txt"), "content2");
-    assert_eq!(at.read("dir1/subdir/file3.txt"), "content3");
-    assert_eq!(at.read("dir1/subdir/deepdir/file4.txt"), "content4");
-}
+// Round-trip tests
 
 #[test]
 fn test_roundtrip_empty_files() {
     let (at, mut ucmd) = at_and_ucmd!();
 
     // Create empty files
-    at.write("empty1.txt", "");
-    at.write("empty2.txt", "");
+    at.touch("empty1.txt");
+    at.touch("empty2.txt");
 
     // Create archive
     ucmd.args(&["-cf", "archive.tar", "empty1.txt", "empty2.txt"])
@@ -418,52 +328,18 @@ fn test_roundtrip_empty_files() {
     assert_eq!(at.read("empty2.txt"), "");
 }
 
-#[test]
-fn test_roundtrip_special_characters_in_names() {
-    let (at, mut ucmd) = at_and_ucmd!();
-
-    // Create files with special characters (avoiding problematic ones)
-    at.write("file-with-dash.txt", "dash content");
-    at.write("file_with_underscore.txt", "underscore content");
-    at.write("file.multiple.dots.txt", "dots content");
-
-    // Create archive
-    ucmd.args(&[
-        "-cf",
-        "archive.tar",
-        "file-with-dash.txt",
-        "file_with_underscore.txt",
-        "file.multiple.dots.txt",
-    ])
-    .succeeds();
-
-    // Remove originals
-    at.remove("file-with-dash.txt");
-    at.remove("file_with_underscore.txt");
-    at.remove("file.multiple.dots.txt");
-
-    // Extract
-    new_ucmd!()
-        .arg("-xf")
-        .arg(at.plus("archive.tar"))
-        .current_dir(at.as_string())
-        .succeeds();
-
-    // Verify contents
-    assert_eq!(at.read("file-with-dash.txt"), "dash content");
-    assert_eq!(at.read("file_with_underscore.txt"), "underscore content");
-    assert_eq!(at.read("file.multiple.dots.txt"), "dots content");
-}
-
-// -----------------------------------------------------------------------------
-// 5. Error Handling and Exit Code Tests
-// -----------------------------------------------------------------------------
+// Error handling and exit code tests
 
 #[test]
 #[cfg(unix)]
 fn test_create_permission_denied() {
-    use std::fs;
-    use std::os::unix::fs::PermissionsExt;
+    // SAFETY: `libc::geteuid()` is a pure function that returns the effective
+    // user ID of the calling process. It has no side effects and cannot cause
+    // undefined behavior.
+    if unsafe { libc::geteuid() } == 0 {
+        eprintln!("skipping: running as root");
+        return;
+    }
 
     let (at, mut ucmd) = at_and_ucmd!();
 
@@ -471,8 +347,7 @@ fn test_create_permission_denied() {
     at.mkdir("readonly");
 
     // Make directory read-only
-    let perms = fs::Permissions::from_mode(0o444);
-    fs::set_permissions(at.plus("readonly"), perms).unwrap();
+    at.set_readonly("readonly");
 
     ucmd.args(&["-cf", "readonly/archive.tar", "file.txt"])
         .fails()
@@ -480,8 +355,7 @@ fn test_create_permission_denied() {
         .stderr_contains("readonly/archive.tar");
 
     // Cleanup - restore permissions so test cleanup can work
-    let perms = fs::Permissions::from_mode(0o755);
-    fs::set_permissions(at.plus("readonly"), perms).unwrap();
+    at.set_mode("readonly", 0o755);
 }
 
 #[test]
@@ -521,62 +395,7 @@ fn test_create_with_dash_in_filename() {
     assert_eq!(at.read("-dash-file.txt"), "content with dash");
 }
 
-// -----------------------------------------------------------------------------
-// 6. Verbose Output Format Tests
-// -----------------------------------------------------------------------------
-
-#[test]
-fn test_verbose_output_format_matches_gnu() {
-    let (at, mut ucmd) = at_and_ucmd!();
-
-    at.write("file1.txt", "content");
-    at.write("file2.txt", "content");
-
-    let result = ucmd
-        .args(&["-cvf", "archive.tar", "file1.txt", "file2.txt"])
-        .succeeds();
-
-    let stdout = result.stdout_str();
-
-    // Verify verbose output contains filenames
-    assert!(stdout.contains("file1.txt"));
-    assert!(stdout.contains("file2.txt"));
-}
-
-#[test]
-fn test_extract_verbose_shows_all_files() {
-    let (at, mut ucmd) = at_and_ucmd!();
-
-    // Create archive with multiple files
-    at.write("file1.txt", "content1");
-    at.write("file2.txt", "content2");
-    at.write("file3.txt", "content3");
-
-    ucmd.args(&["-cf", "archive.tar", "file1.txt", "file2.txt", "file3.txt"])
-        .succeeds();
-
-    at.remove("file1.txt");
-    at.remove("file2.txt");
-    at.remove("file3.txt");
-
-    // Extract with verbose
-    let result = new_ucmd!()
-        .arg("-xvf")
-        .arg(at.plus("archive.tar"))
-        .current_dir(at.as_string())
-        .succeeds();
-
-    let stdout = result.stdout_str();
-
-    // Verify all files are listed in output
-    assert!(stdout.contains("file1.txt"));
-    assert!(stdout.contains("file2.txt"));
-    assert!(stdout.contains("file3.txt"));
-}
-
-// -----------------------------------------------------------------------------
-// 7. CLI Argument Handling Tests
-// -----------------------------------------------------------------------------
+// CLI argument handling tests
 
 #[test]
 fn test_mixed_short_and_long_options() {
@@ -651,10 +470,9 @@ fn test_extract_overwrites_existing_by_default() {
     assert_eq!(at.read("file.txt"), "original content");
 }
 
-// -----------------------------------------------------------------------------
-// 8. Edge Case Tests
-// -----------------------------------------------------------------------------
+// Edge case tests
 
+// TODO(jeffbailey): This should move to tar-rs
 #[test]
 fn test_file_with_spaces_in_name() {
     let (at, mut ucmd) = at_and_ucmd!();
@@ -703,8 +521,7 @@ fn test_large_number_of_files() {
     // Collect file names for archive creation
     let files: Vec<String> = (0..num_files).map(|i| format!("file{i}.txt")).collect();
     let mut args = vec!["-cf", "archive.tar"];
-    let file_refs: Vec<&str> = files.iter().map(|s| s.as_str()).collect();
-    args.extend(file_refs);
+    args.extend(files.iter().map(String::as_str));
 
     // Create archive
     ucmd.args(&args).succeeds();
@@ -713,7 +530,7 @@ fn test_large_number_of_files() {
     assert!(at.file_exists("archive.tar"));
     let archive_size = at.read_bytes("archive.tar").len();
     assert!(
-        archive_size > 512 * num_files,
+        archive_size > TAR_BLOCK_SIZE * num_files,
         "Archive should contain data for {num_files} files"
     );
 }

@@ -45,7 +45,7 @@ rand = { version = "0.9", features = ["small_rng"] }
 regex = "1.10.4"
 uucore = "0.5.0"
 uuhelp_parser = "0.2.0"
-uutests = "0.5.0"
+uutests = "0.6.0"
 tar = "0.4"
 tempfile = "3.10.1"
 textwrap = { version = "0.16.1", features = ["terminal_size"] }

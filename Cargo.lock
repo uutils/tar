@@ -959,15 +959,6 @@ checksum = "7a2d987857b319362043e95f5353c0535c1f58eec5336fdfcf626430af7def58"
 
 [[package]]
 name = "rlimit"
-version = "0.10.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7043b63bd0cd1aaa628e476b80e6d4023a3b50eb32789f2728908107bd0c793a"
-dependencies = [
- "libc",
-]
-
-[[package]]
-name = "rlimit"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f35ee2729c56bb610f6dba436bf78135f728b7373bdffae2ec815b2d3eb98cc3"
@@ -1153,7 +1144,7 @@ dependencies = [
  "pretty_assertions",
  "rand",
  "regex",
- "rlimit 0.10.2",
+ "rlimit",
  "tar",
  "tempfile",
  "textwrap",
@@ -1418,7 +1409,7 @@ dependencies = [
  "pretty_assertions",
  "rand",
  "regex",
- "rlimit 0.11.0",
+ "rlimit",
  "tempfile",
  "uucore 0.6.0",
  "xattr",

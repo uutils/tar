@@ -24,44 +24,43 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            var artifacts = await github.rest.actions.listWorkflowRunArtifacts({
+            const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
                owner: context.repo.owner,
                repo: context.repo.repo,
                run_id: ${{ github.event.workflow_run.id }},
             });
-            var matchArtifact = artifacts.data.artifacts.filter((artifact) => {
-               return artifact.name == "comment"
-            })[0];
+            const matchArtifact = artifacts.data.artifacts.find(a => a.name === "comment");
             if (!matchArtifact) {
-              return core.setFailed("No 'comment' artifact found");
+              return core.info("No 'comment' artifact found");
             }
-            var download = await github.rest.actions.downloadArtifact({
+            const download = await github.rest.actions.downloadArtifact({
                owner: context.repo.owner,
                repo: context.repo.repo,
                artifact_id: matchArtifact.id,
                archive_format: 'zip',
             });
-            var fs = require('fs');
+            const fs = require('fs');
             fs.writeFileSync('${{ github.workspace }}/comment.zip', Buffer.from(download.data));
 
-      - run: unzip comment.zip
+      - name: 'Unzip artifact'
+        run: unzip comment.zip
 
       - name: 'Comment on PR'
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            var fs = require('fs');
+            const fs = require('fs');
             if (!fs.existsSync('./NR') || !fs.existsSync('./result.txt')) {
-              return;
+               return core.info("No NR or result.txt found, skipping comment");
             }
-            var issue_number = Number(fs.readFileSync('./NR'));
-            var content = fs.readFileSync('./result.txt');
-            if (content.toString().trim().length > 7) {
+            const issue_number = Number(fs.readFileSync('./NR', 'utf8').trim());
+            const content = fs.readFileSync('./result.txt', 'utf8').trim();
+            if (content.length > 0) {
               await github.rest.issues.createComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: issue_number,
-                body: 'GNU testsuite comparison:\n```\n' + content + '```'
+                body: `### GNU Testsuite Comparison\n\n\`\`\`\n${content}\n\`\`\``
               });
             }

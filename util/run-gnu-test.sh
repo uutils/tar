@@ -46,7 +46,6 @@ export TAR="${UU_BUILD_DIR}/tar"
 echo "Running GNU tar tests..."
 
 # Run with timeout and make check
-# We use TAR to set the tar binary for the testsuite
-# Then we use $* to pass any additional user arguments (specific tests)
+# We use $* to pass any additional user arguments (e.g. TESTSUITEFLAGS="1-5")
 cp "${TAR}" src/tar
-timeout -sKILL 4h "${MAKE}" -j "$("${NPROC}")" check 
+timeout -sKILL 4h "${MAKE}" -j "$("${NPROC}")" check "$@"

@@ -38,13 +38,10 @@ if test ! -d "${path_GNU}/.git"; then
     echo "Cloning GNU tar..."
     git clone --recurse-submodules https://git.savannah.gnu.org/git/tar.git "${path_GNU}"
     cd "${path_GNU}"
-    # Checkout v1.35
     git checkout v1.35
+    git submodule update --init --recursive
     
-    # Bootstrap requires gnulib. 
-    # If git clone --recurse-submodules was used it might be there, but standard bootstrap fetches it.
-    # We need to make sure we have dependencies.
-    # FORCE_UNSAFE_CONFIGURE=1 might be needed if running as root in some envs, but usually fine.
+    # Bootstrap requires gnulib and generates the configure script
     ./bootstrap --skip-po
 fi
 

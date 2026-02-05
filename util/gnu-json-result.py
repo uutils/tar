@@ -24,7 +24,7 @@ for filepath in test_dir.glob("**/*.log"):
     if path.name == "testsuite.log":
         # Handle Autotest testsuite.log
         try:
-            with open(path, errors="ignore") as f:
+            with open(path, "r", errors="ignore") as f:
                 for line in f:
                     # Look for lines like: "  1: basic functionality                ok"
                     # or " 10: ...                                     FAILED (basic.at:123)"
@@ -38,13 +38,18 @@ for filepath in test_dir.glob("**/*.log"):
             print(f"Error processing testsuite.log {path}: {e}", file=sys.stderr)
         continue
 
+    # Handle individual Automake-style .log files
     current = out
     for key in path.parent.relative_to(test_dir).parts:
         if key not in current:
             current[key] = {}
         current = current[key]
     try:
-        with open(path, errors="ignore") as f:
+        with open(path, "r", errors="ignore") as f:
+            # Only read the end of the file where the result is usually located
+            f.seek(0, 2)
+            size = f.tell()
+            f.seek(max(0, size - 1000), 0)
             content = f.read()
             result = re.search(
                 r"(PASS|FAIL|SKIP|ERROR) [^ ]+ \(exit status: \d+\)$", content

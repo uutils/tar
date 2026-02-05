@@ -16,11 +16,16 @@ concurrency:
 env:
   DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
   TEST_FULL_SUMMARY_FILE: 'gnu-full-result.json'
+  TEST_SUMMARY_FILE: 'gnu-result.json'
+  AGGREGATED_SUMMARY_FILE: 'aggregated-result.json'
 
 jobs:
   native:
     name: Run GNU tests (native)
     runs-on: ubuntu-24.04
+    defaults:
+      run:
+        shell: bash
     steps:
     - name: Checkout code (uutils)
       uses: actions/checkout@v4
@@ -38,43 +43,36 @@ jobs:
         workspaces: "./uutils -> target"
     
     - name: Install dependencies
-      shell: bash
       run: |
         sudo apt-get update
         sudo apt-get install -y autoconf autopoint bison texinfo gperf gcc g++ gdb python3-pyinotify jq valgrind libacl1-dev libattr1-dev libcap-dev libselinux1-dev attr quilt gettext
     
     - name: Build binaries and GNU tar
-      shell: bash
       run: |
         cd 'uutils'
-        # This script will clone GNU tar and build everything
         bash util/build-gnu.sh --release-build
 
     - name: Run GNU tests
-      shell: bash
       continue-on-error: true
       run: |
         cd 'uutils'
         bash util/run-gnu-test.sh
 
-    - name: Extract testing info from individual logs into JSON
-      shell: bash
+    - name: Extract info into JSON
       run : |
         python uutils/util/gnu-json-result.py gnu/tests > ${{ env.TEST_FULL_SUMMARY_FILE }}
 
-    - name: Upload full json results
+    - name: Upload full results
       uses: actions/upload-artifact@v4
       with:
         name: gnu-full-result
         path: ${{ env.TEST_FULL_SUMMARY_FILE }}
 
-    - name: Compress test logs
-      shell: bash
+    - name: Compress logs
       run : |
-        # Compress logs before upload (fails otherwise)
         gzip gnu/tests/*/*.log
 
-    - name: Upload test logs
+    - name: Upload logs
       uses: actions/upload-artifact@v4
       with:
         name: test-logs
@@ -90,17 +88,11 @@ jobs:
       pull-requests: read
     name: Aggregate GNU test results
     runs-on: ubuntu-24.04
+    defaults:
+      run:
+        shell: bash
     steps:
-    - name: Initialize workflow variables
-      id: vars
-      shell: bash
-      run: |
-        TEST_SUMMARY_FILE='gnu-result.json'
-        AGGREGATED_SUMMARY_FILE='aggregated-result.json'
-        echo "TEST_SUMMARY_FILE=${TEST_SUMMARY_FILE}" >> $GITHUB_OUTPUT
-        echo "AGGREGATED_SUMMARY_FILE=${AGGREGATED_SUMMARY_FILE}" >> $GITHUB_OUTPUT
-
-    - name: Checkout code (uutils)
+    - name: Checkout code
       uses: actions/checkout@v4
       with:
         path: 'uutils'
@@ -115,21 +107,18 @@ jobs:
         workflow_conclusion: completed
         path: "reference"
 
-    - name: Download full json results
+    - name: Download results
       uses: actions/download-artifact@v4
       with:
         name: gnu-full-result
         path: results
 
-    - name: Extract/summarize testing info
+    - name: Summarize results
       id: summary
-      shell: bash
       run: |
-        # Look at all individual results and summarize
-        eval $(python3 uutils/util/analyze-gnu-results.py -o=${{ steps.vars.outputs.AGGREGATED_SUMMARY_FILE }} results/*.json)
-
-        output="GNU tests summary = TOTAL: $TOTAL / PASS: $PASS / FAIL: $FAIL / ERROR: $ERROR / SKIP: $SKIP"
-        echo "${output}"
+        eval $(python3 uutils/util/analyze-gnu-results.py -o=${{ env.AGGREGATED_SUMMARY_FILE }} results/*.json)
+        
+        echo "GNU tests summary = TOTAL: $TOTAL / PASS: $PASS / FAIL: $FAIL / ERROR: $ERROR / SKIP: $SKIP"
 
         jq -n \
               --arg date "$(date --rfc-email)" \
@@ -140,37 +129,50 @@ jobs:
               --arg fail "$FAIL" \
               --arg xpass "$XPASS" \
               --arg error "$ERROR" \
-              '{($date): { sha: $sha, total: $total, pass: $pass, skip: $skip, fail: $fail, xpass: $xpass, error: $error, }}' > '${{ steps.vars.outputs.TEST_SUMMARY_FILE }}'
-        
-        HASH=$(sha1sum '${{ steps.vars.outputs.TEST_SUMMARY_FILE }}' | cut --delim=" " -f 1)
-        echo "HASH=${HASH}" >> $GITHUB_OUTPUT
+              '{($date): { sha: $sha, total: $total, pass: $pass, skip: $skip, fail: $fail, xpass: $xpass, error: $error, }}' > '${{ env.TEST_SUMMARY_FILE }}'
 
-    - name: Upload test results summary
-      uses: actions/upload-artifact@v4
-      with:
-        name: test-summary
-        path: "${{ steps.vars.outputs.TEST_SUMMARY_FILE }}"
+    - name: Prepare comparison
+      if: github.event_name == 'pull_request'
+      run: |
+        mkdir -p comment
+        echo "${{ github.event.pull_request.number }}" > comment/NR
 
-    - name: Upload aggregated json results
-      uses: actions/upload-artifact@v4
-      with:
-        name: aggregated-result
-        path: ${{ steps.vars.outputs.AGGREGATED_SUMMARY_FILE }}
-
-    - name: Compare test failures VS reference
-      shell: bash
+    - name: Compare results
       continue-on-error: true
       run: |
-        ## Compare test failures VS reference using JSON files
-        # This step will fail if no reference is found, which is expected for the first run
-        REF_SUMMARY_FILE='reference/aggregated-result/aggregated-result.json'
-        CURRENT_SUMMARY_FILE='${{ steps.vars.outputs.AGGREGATED_SUMMARY_FILE }}'
+        REF_SUMMARY_FILE='reference/aggregated-result/${{ env.AGGREGATED_SUMMARY_FILE }}'
+        CURRENT_SUMMARY_FILE='${{ env.AGGREGATED_SUMMARY_FILE }}'
         IGNORE_INTERMITTENT="uutils/.github/workflows/ignore-intermittent.txt"
+        
+        OUTPUT_ARG=""
+        if [ "${{ github.event_name }}" == "pull_request" ]; then
+          OUTPUT_ARG="--output comment/result.txt"
+        fi
 
         if [ -f "${REF_SUMMARY_FILE}" ]; then
           python3 uutils/util/compare_test_results.py \
             --ignore-file "${IGNORE_INTERMITTENT}" \
+            ${OUTPUT_ARG} \
             "${CURRENT_SUMMARY_FILE}" "${REF_SUMMARY_FILE}"
         else
           echo "No reference summary found. Skipping comparison."
         fi
+
+    - name: Upload summary
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-summary
+        path: "${{ env.TEST_SUMMARY_FILE }}"
+
+    - name: Upload aggregated results
+      uses: actions/upload-artifact@v4
+      with:
+        name: aggregated-result
+        path: ${{ env.AGGREGATED_SUMMARY_FILE }}
+
+    - name: Upload comment artifact
+      if: github.event_name == 'pull_request'
+      uses: actions/upload-artifact@v4
+      with:
+        name: comment
+        path: comment

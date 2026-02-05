@@ -13,6 +13,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
+env:
+  DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+  TEST_FULL_SUMMARY_FILE: 'gnu-full-result.json'
+
 jobs:
   native:
     name: Run GNU tests (native)
@@ -48,6 +52,125 @@ jobs:
 
     - name: Run GNU tests
       shell: bash
+      continue-on-error: true
       run: |
         cd 'uutils'
         bash util/run-gnu-test.sh
+
+    - name: Extract testing info from individual logs into JSON
+      shell: bash
+      run : |
+        python uutils/util/gnu-json-result.py gnu/tests > ${{ env.TEST_FULL_SUMMARY_FILE }}
+
+    - name: Upload full json results
+      uses: actions/upload-artifact@v4
+      with:
+        name: gnu-full-result
+        path: ${{ env.TEST_FULL_SUMMARY_FILE }}
+
+    - name: Compress test logs
+      shell: bash
+      run : |
+        # Compress logs before upload (fails otherwise)
+        gzip gnu/tests/*/*.log
+
+    - name: Upload test logs
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-logs
+        path: |
+          gnu/tests/*.log
+          gnu/tests/*/*.log.gz
+
+  aggregate:
+    needs: [native]
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: read
+    name: Aggregate GNU test results
+    runs-on: ubuntu-24.04
+    steps:
+    - name: Initialize workflow variables
+      id: vars
+      shell: bash
+      run: |
+        TEST_SUMMARY_FILE='gnu-result.json'
+        AGGREGATED_SUMMARY_FILE='aggregated-result.json'
+        echo "TEST_SUMMARY_FILE=${TEST_SUMMARY_FILE}" >> $GITHUB_OUTPUT
+        echo "AGGREGATED_SUMMARY_FILE=${AGGREGATED_SUMMARY_FILE}" >> $GITHUB_OUTPUT
+
+    - name: Checkout code (uutils)
+      uses: actions/checkout@v4
+      with:
+        path: 'uutils'
+        persist-credentials: false
+
+    - name: Retrieve reference artifacts
+      uses: dawidd6/action-download-artifact@v9
+      continue-on-error: true
+      with:
+        workflow: GnuTests.yml
+        branch: "${{ env.DEFAULT_BRANCH }}"
+        workflow_conclusion: completed
+        path: "reference"
+
+    - name: Download full json results
+      uses: actions/download-artifact@v4
+      with:
+        name: gnu-full-result
+        path: results
+
+    - name: Extract/summarize testing info
+      id: summary
+      shell: bash
+      run: |
+        # Look at all individual results and summarize
+        eval $(python3 uutils/util/analyze-gnu-results.py -o=${{ steps.vars.outputs.AGGREGATED_SUMMARY_FILE }} results/*.json)
+
+        output="GNU tests summary = TOTAL: $TOTAL / PASS: $PASS / FAIL: $FAIL / ERROR: $ERROR / SKIP: $SKIP"
+        echo "${output}"
+
+        jq -n \
+              --arg date "$(date --rfc-email)" \
+              --arg sha "$GITHUB_SHA" \
+              --arg total "$TOTAL" \
+              --arg pass "$PASS" \
+              --arg skip "$SKIP" \
+              --arg fail "$FAIL" \
+              --arg xpass "$XPASS" \
+              --arg error "$ERROR" \
+              '{($date): { sha: $sha, total: $total, pass: $pass, skip: $skip, fail: $fail, xpass: $xpass, error: $error, }}' > '${{ steps.vars.outputs.TEST_SUMMARY_FILE }}'
+        
+        HASH=$(sha1sum '${{ steps.vars.outputs.TEST_SUMMARY_FILE }}' | cut --delim=" " -f 1)
+        echo "HASH=${HASH}" >> $GITHUB_OUTPUT
+
+    - name: Upload test results summary
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-summary
+        path: "${{ steps.vars.outputs.TEST_SUMMARY_FILE }}"
+
+    - name: Upload aggregated json results
+      uses: actions/upload-artifact@v4
+      with:
+        name: aggregated-result
+        path: ${{ steps.vars.outputs.AGGREGATED_SUMMARY_FILE }}
+
+    - name: Compare test failures VS reference
+      shell: bash
+      continue-on-error: true
+      run: |
+        ## Compare test failures VS reference using JSON files
+        # This step will fail if no reference is found, which is expected for the first run
+        REF_SUMMARY_FILE='reference/aggregated-result/aggregated-result.json'
+        CURRENT_SUMMARY_FILE='${{ steps.vars.outputs.AGGREGATED_SUMMARY_FILE }}'
+        IGNORE_INTERMITTENT="uutils/.github/workflows/ignore-intermittent.txt"
+
+        if [ -f "${REF_SUMMARY_FILE}" ]; then
+          python3 uutils/util/compare_test_results.py \
+            --ignore-file "${IGNORE_INTERMITTENT}" \
+            "${CURRENT_SUMMARY_FILE}" "${REF_SUMMARY_FILE}"
+        else
+          echo "No reference summary found. Skipping comparison."
+        fi

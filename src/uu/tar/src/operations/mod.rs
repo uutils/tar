@@ -5,3 +5,9 @@
 
 pub mod create;
 pub mod extract;
+pub mod operation;
+
+pub(crate) use self::create::Create;
+pub(crate) use self::extract::Extract;
+pub(crate) use self::operation::OperationKind;
+pub use self::operation::TarOperation;

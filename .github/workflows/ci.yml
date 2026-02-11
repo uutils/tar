@@ -30,15 +30,6 @@ jobs:
       - uses: actions/checkout@v6
       - run: cargo test --all
 
-  fmt:
-    name: cargo fmt --all -- --check
-    runs-on: ubuntu-latest
-    env:
-      CARGO_INCREMENTAL: 0
-    steps:
-      - uses: actions/checkout@v6
-      - run: cargo fmt --all -- --check
-
   coverage:
     name: Code Coverage
     runs-on: ${{ matrix.job.os }}

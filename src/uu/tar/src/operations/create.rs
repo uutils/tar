@@ -6,6 +6,7 @@
 use crate::errors::TarError;
 use std::collections::VecDeque;
 use std::fs::{self, File};
+use std::path::Component::{self, ParentDir, Prefix, RootDir};
 use std::path::{self, Path, PathBuf};
 use tar::Builder;
 use uucore::error::UResult;
@@ -60,9 +61,26 @@ pub fn create_archive(archive_path: &Path, files: &[&Path], verbose: bool) -> UR
             println!("{to_print}");
         }
 
+        // Normalize path if needed (so far, handles only absolute paths)
+        let normalized_name = if let Some(normalized) = normalize_path(path) {
+            let original_components: Vec<Component> = path.components().collect();
+            let normalized_components: Vec<Component> = normalized.components().collect();
+            if original_components.len() > normalized_components.len() {
+                let removed: PathBuf = original_components
+                    [..original_components.len() - normalized_components.len()]
+                    .iter()
+                    .collect();
+                println!("Removing leading `{}' from member names", removed.display());
+            }
+
+            normalized
+        } else {
+            path.to_path_buf()
+        };
+
         // If it's a directory, recursively add all contents
         if path.is_dir() {
-            builder.append_dir_all(path, path).map_err(|e| {
+            builder.append_dir_all(normalized_name, path).map_err(|e| {
                 TarError::TarOperationError(format!(
                     "Failed to add directory '{}': {}",
                     path.display(),
@@ -71,13 +89,15 @@ pub fn create_archive(archive_path: &Path, files: &[&Path], verbose: bool) -> UR
             })?;
         } else {
             // For files, add them directly
-            builder.append_path(path).map_err(|e| {
-                TarError::TarOperationError(format!(
-                    "Failed to add file '{}': {}",
-                    path.display(),
-                    e
-                ))
-            })?;
+            builder
+                .append_path_with_name(path, normalized_name)
+                .map_err(|e| {
+                    TarError::TarOperationError(format!(
+                        "Failed to add file '{}': {}",
+                        path.display(),
+                        e
+                    ))
+                })?;
         }
     }
 
@@ -105,4 +125,16 @@ fn get_tree(path: &Path) -> Result<Vec<PathBuf>, std::io::Error> {
     }
 
     Ok(paths)
+}
+
+fn normalize_path(path: &Path) -> Option<PathBuf> {
+    if path.is_absolute() {
+        Some(
+            path.components()
+                .filter(|c| !matches!(c, RootDir | ParentDir | Prefix(_)))
+                .collect::<PathBuf>(),
+        )
+    } else {
+        None
+    }
 }

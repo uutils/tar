@@ -1,0 +1,3 @@
+# List of intermittent GNU tests to ignore during comparison
+# Add test paths here (one per line, without .log extension)
+# Example: tests/ls/stat-free-color

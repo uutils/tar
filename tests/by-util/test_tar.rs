@@ -60,6 +60,7 @@ fn test_no_operation_specified() {
 }
 
 // Create operation tests
+#[test]
 fn test_create_dir_verbose() {
     let (at, mut ucmd) = at_and_ucmd!();
 

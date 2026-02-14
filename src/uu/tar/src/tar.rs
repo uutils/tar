@@ -31,14 +31,39 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         args_vec
     };
 
-    let matches = uu_app().try_get_matches_from(args_to_parse)?;
+    let matches = match uu_app().try_get_matches_from(args_to_parse) {
+        Ok(matches) => matches,
+        Err(err) => {
+            let kind = err.kind();
+            match kind {
+                clap::error::ErrorKind::DisplayHelp | clap::error::ErrorKind::DisplayVersion => {
+                    let _ = err.print();
+                    return Ok(());
+                }
+                _ => {
+                    let code = match kind {
+                        clap::error::ErrorKind::ArgumentConflict => 2,
+                        clap::error::ErrorKind::UnknownArgument
+                        | clap::error::ErrorKind::MissingRequiredArgument
+                        | clap::error::ErrorKind::TooFewValues
+                        | clap::error::ErrorKind::TooManyValues
+                        | clap::error::ErrorKind::WrongNumberOfValues => 64,
+                        clap::error::ErrorKind::InvalidValue
+                        | clap::error::ErrorKind::ValueValidation => 2,
+                        _ => 2,
+                    };
+                    return Err(uucore::error::USimpleError::new(code, err.to_string()));
+                }
+            }
+        }
+    };
 
     let verbose = matches.get_flag("verbose");
 
     // Handle extract operation
     if matches.get_flag("extract") {
         let archive_path = matches.get_one::<PathBuf>("file").ok_or_else(|| {
-            uucore::error::USimpleError::new(1, "option requires an argument -- 'f'")
+            uucore::error::USimpleError::new(64, "option requires an argument -- 'f'")
         })?;
 
         return operations::extract::extract_archive(archive_path, verbose);
@@ -47,7 +72,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     // Handle create operation
     if matches.get_flag("create") {
         let archive_path = matches.get_one::<PathBuf>("file").ok_or_else(|| {
-            uucore::error::USimpleError::new(1, "option requires an argument -- 'f'")
+            uucore::error::USimpleError::new(64, "option requires an argument -- 'f'")
         })?;
 
         let files: Vec<&Path> = matches
@@ -57,7 +82,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
 
         if files.is_empty() {
             return Err(uucore::error::USimpleError::new(
-                1,
+                2,
                 "Cowardly refusing to create an empty archive",
             ));
         }
@@ -67,7 +92,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
 
     // If no operation specified, show error
     Err(uucore::error::USimpleError::new(
-        1,
+        2,
         "You must specify one of the '-c' or '-x' options",
     ))
 }
@@ -82,12 +107,14 @@ pub fn uu_app() -> Command {
         .disable_help_flag(true)
         .args([
             // Main operation modes
-            arg!(-c --create "Create a new archive"),
+            arg!(-c --create "Create a new archive").conflicts_with("extract"),
             // arg!(-d --diff "Find differences between archive and file system").alias("compare"),
             // arg!(-r --append "Append files to end of archive"),
             // arg!(-t --list "List contents of archive"),
             // arg!(-u --update "Only append files newer than copy in archive"),
-            arg!(-x --extract "Extract files from archive").alias("get"),
+            arg!(-x --extract "Extract files from archive")
+                .alias("get")
+                .conflicts_with("create"),
             // Archive file
             arg!(-f --file <ARCHIVE> "Use archive file or device ARCHIVE")
                 .value_parser(clap::value_parser!(PathBuf)),

@@ -7,7 +7,6 @@ use uucore::error::UResult;
 /// [`TarParams`] Holds common information that is parsed from
 /// command line arguments. That changes the current execution of
 /// tar.
-#[allow(dead_code)]
 #[derive(Default)]
 pub struct TarParams {
     archive: PathBuf,
@@ -49,27 +48,23 @@ impl TarParams {
         } else if matches.get_flag("extract") {
             Ok((OperationKind::Extract, Self::from(matches)))
         } else {
-            // TODO: update messaging
-            Err(Box::new(TarError::TarOperationError(
-                "Error processing: Operations".to_string(),
-            )))
+            Err(Box::new(TarError::TarOperationError(format!(
+                "Error processing: Unknown or Unimplmented Parameters: {:?}",
+                matches
+                    .ids()
+                    .map(|i| i.to_string())
+                    .collect::<Vec<String>>()
+            ))))
         }
     }
 }
 
-#[allow(dead_code)]
 impl TarParams {
     pub fn files(&self) -> &Vec<PathBuf> {
         &self.files
     }
-    pub fn files_mut(&mut self) -> &mut Vec<PathBuf> {
-        &mut self.files
-    }
     pub fn archive(&self) -> &PathBuf {
         &self.archive
-    }
-    pub fn archive_mut(&mut self) -> &mut PathBuf {
-        &mut self.archive
     }
     pub fn options(&self) -> &Vec<TarOption> {
         &self.options
@@ -81,12 +76,6 @@ impl TarParams {
 
 /// [`TarOption`] Enum of avaliable tar options for later use
 /// by [`TarOperation`] impls, eg. List, Create, Delete
-#[allow(dead_code)]
 pub enum TarOption {
-    AbsoluteNames,
-    ACLs,
-    AfterDate,
-    Anchored,
-    AtimePreserve { arg: String },
     Verbose,
 }

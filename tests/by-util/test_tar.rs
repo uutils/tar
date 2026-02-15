@@ -3,7 +3,7 @@
 // For the full copyright and license information, please view the LICENSE
 // file that was distributed with this source code.
 
-use std::path;
+use std::path::{self, PathBuf};
 
 use uutests::{at_and_ucmd, new_ucmd};
 
@@ -33,7 +33,7 @@ fn test_version() {
 }
 
 #[test]
-fn test_verbose() {
+fn test_create_dir_verbose() {
     let (at, mut ucmd) = at_and_ucmd!();
 
     let separator = path::MAIN_SEPARATOR;
@@ -77,6 +77,21 @@ fn test_create_multiple_files() {
 
     ucmd.args(&["-cf", "archive.tar", "file1.txt", "file2.txt"])
         .succeeds();
+
+    assert!(at.file_exists("archive.tar"));
+}
+
+#[test]
+fn test_create_absolute_path() {
+    let (at, mut ucmd) = at_and_ucmd!();
+
+    let mut file_abs_path = PathBuf::from(at.root_dir_resolved());
+    file_abs_path.push("file1.txt");
+
+    at.write(&file_abs_path.display().to_string(), "content1");
+    ucmd.args(&["-cf", "archive.tar", &file_abs_path.display().to_string()])
+        .succeeds()
+        .stdout_contains("Removing leading");
 
     assert!(at.file_exists("archive.tar"));
 }
@@ -138,4 +153,30 @@ fn test_extract_nonexistent_archive() {
         .args(&["-xf", "nonexistent.tar"])
         .fails()
         .code_is(2);
+}
+
+#[test]
+fn test_extract_created_from_absolute_path() {
+    let (at, mut ucmd) = at_and_ucmd!();
+
+    let mut file_abs_path = PathBuf::from(at.root_dir_resolved());
+    file_abs_path.push("file1.txt");
+
+    at.write(&file_abs_path.display().to_string(), "content1");
+    ucmd.args(&["-cf", "archive.tar", &file_abs_path.display().to_string()])
+        .succeeds();
+
+    new_ucmd!()
+        .args(&["-xf", "archive.tar"])
+        .current_dir(at.as_string())
+        .succeeds();
+
+    let expected_path = file_abs_path
+        .components()
+        .filter(|c| !matches!(c, path::Component::RootDir | path::Component::Prefix(_)))
+        .map(|c| c.as_os_str().display().to_string())
+        .collect::<Vec<_>>()
+        .join(std::path::MAIN_SEPARATOR_STR);
+
+    assert!(at.file_exists(expected_path));
 }

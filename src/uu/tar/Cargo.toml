@@ -17,6 +17,7 @@ uucore = { workspace = true }
 clap = { workspace = true }
 regex = { workspace = true }
 tar = { workspace = true }
+jiff = { workspace = true }
 
 [lib]
 path = "src/tar.rs"

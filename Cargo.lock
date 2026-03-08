@@ -658,7 +658,7 @@ dependencies = [
  "portable-atomic",
  "portable-atomic-util",
  "serde_core",
- "windows-sys",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1451,6 +1451,7 @@ name = "uu_tar"
 version = "0.0.1"
 dependencies = [
  "clap",
+ "jiff",
  "regex",
  "tar",
  "uucore",

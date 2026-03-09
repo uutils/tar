@@ -44,7 +44,7 @@ phf_codegen = "0.13.0"
 rand = { version = "0.10.0" }
 regex = "1.10.4"
 uucore = "0.6.0"
-uutests = "0.6.0"
+uutests = "0.7.0"
 tar = "0.4"
 tempfile = "3.10.1"
 textwrap = { version = "0.16.1", features = ["terminal_size"] }

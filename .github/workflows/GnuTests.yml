@@ -1,0 +1,178 @@
+name: GnuTests
+
+on:
+  pull_request:
+  push:
+    branches:
+      - '*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+env:
+  DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+  TEST_FULL_SUMMARY_FILE: 'gnu-full-result.json'
+  TEST_SUMMARY_FILE: 'gnu-result.json'
+  AGGREGATED_SUMMARY_FILE: 'aggregated-result.json'
+
+jobs:
+  native:
+    name: Run GNU tests (native)
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        shell: bash
+    steps:
+    - name: Checkout code (uutils)
+      uses: actions/checkout@v4
+      with:
+        path: 'uutils'
+        persist-credentials: false
+    
+    - uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: stable
+        components: rustfmt
+    
+    - uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: "./uutils -> target"
+    
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y autoconf autopoint bison texinfo gperf gcc g++ gdb python3-pyinotify jq valgrind libacl1-dev libattr1-dev libcap-dev libselinux1-dev attr quilt gettext
+    
+    - name: Build binaries and GNU tar
+      run: |
+        cd 'uutils'
+        bash util/build-gnu.sh --release-build
+
+    - name: Run GNU tests
+      continue-on-error: true
+      run: |
+        cd 'uutils'
+        bash util/run-gnu-test.sh
+
+    - name: Extract info into JSON
+      run : |
+        python uutils/util/gnu-json-result.py gnu/tests > ${{ env.TEST_FULL_SUMMARY_FILE }}
+
+    - name: Upload full results
+      uses: actions/upload-artifact@v4
+      with:
+        name: gnu-full-result
+        path: ${{ env.TEST_FULL_SUMMARY_FILE }}
+
+    - name: Compress logs
+      run : |
+        gzip gnu/tests/*/*.log
+
+    - name: Upload logs
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-logs
+        path: |
+          gnu/tests/*.log
+          gnu/tests/*/*.log.gz
+
+  aggregate:
+    needs: [native]
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: read
+    name: Aggregate GNU test results
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        shell: bash
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        path: 'uutils'
+        persist-credentials: false
+
+    - name: Retrieve reference artifacts
+      uses: dawidd6/action-download-artifact@v9
+      continue-on-error: true
+      with:
+        workflow: GnuTests.yml
+        branch: "${{ env.DEFAULT_BRANCH }}"
+        workflow_conclusion: completed
+        path: "reference"
+
+    - name: Download results
+      uses: actions/download-artifact@v4
+      with:
+        name: gnu-full-result
+        path: results
+
+    - name: Summarize results
+      id: summary
+      run: |
+        eval $(python3 uutils/util/analyze-gnu-results.py -o=${{ env.AGGREGATED_SUMMARY_FILE }} results/*.json)
+        
+        echo "GNU tests summary = TOTAL: $TOTAL / PASS: $PASS / FAIL: $FAIL / ERROR: $ERROR / SKIP: $SKIP"
+
+        jq -n \
+              --arg date "$(date --rfc-email)" \
+              --arg sha "$GITHUB_SHA" \
+              --arg total "$TOTAL" \
+              --arg pass "$PASS" \
+              --arg skip "$SKIP" \
+              --arg fail "$FAIL" \
+              --arg xpass "$XPASS" \
+              --arg error "$ERROR" \
+              '{($date): { sha: $sha, total: $total, pass: $pass, skip: $skip, fail: $fail, xpass: $xpass, error: $error, }}' > '${{ env.TEST_SUMMARY_FILE }}'
+
+    - name: Prepare comparison
+      if: github.event_name == 'pull_request'
+      run: |
+        mkdir -p comment
+        echo "${{ github.event.pull_request.number }}" > comment/NR
+
+    - name: Compare results
+      continue-on-error: true
+      run: |
+        REF_SUMMARY_FILE='reference/aggregated-result/${{ env.AGGREGATED_SUMMARY_FILE }}'
+        CURRENT_SUMMARY_FILE='${{ env.AGGREGATED_SUMMARY_FILE }}'
+        IGNORE_INTERMITTENT="uutils/.github/workflows/ignore-intermittent.txt"
+        
+        OUTPUT_ARG=""
+        if [ "${{ github.event_name }}" == "pull_request" ]; then
+          OUTPUT_ARG="--output comment/result.txt"
+        fi
+
+        if [ -f "${REF_SUMMARY_FILE}" ]; then
+          python3 uutils/util/compare_test_results.py \
+            --ignore-file "${IGNORE_INTERMITTENT}" \
+            ${OUTPUT_ARG} \
+            "${CURRENT_SUMMARY_FILE}" "${REF_SUMMARY_FILE}"
+        else
+          echo "No reference summary found. Skipping comparison."
+        fi
+
+    - name: Upload summary
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-summary
+        path: "${{ env.TEST_SUMMARY_FILE }}"
+
+    - name: Upload aggregated results
+      uses: actions/upload-artifact@v4
+      with:
+        name: aggregated-result
+        path: ${{ env.AGGREGATED_SUMMARY_FILE }}
+
+    - name: Upload comment artifact
+      if: github.event_name == 'pull_request'
+      uses: actions/upload-artifact@v4
+      with:
+        name: comment
+        path: comment

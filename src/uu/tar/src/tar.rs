@@ -12,7 +12,75 @@ use uucore::error::UResult;
 use uucore::format_usage;
 
 const ABOUT: &str = "an archiving utility";
-const USAGE: &str = "tar {c|x}[v] -f ARCHIVE [FILE...]";
+const USAGE: &str = "tar key [FILE...]\n       tar {-c|-x} [-v] -f ARCHIVE [FILE...]";
+
+/// Determines whether a string looks like a POSIX tar keystring.
+///
+/// A valid keystring must not start with '-', must contain at least one
+/// function letter (c, x, t, u, r), and every character must be a
+/// recognised key character.
+fn is_posix_keystring(s: &str) -> bool {
+    if s.is_empty() || s.starts_with('-') {
+        return false;
+    }
+    let valid_chars = "cxturvwfblmo";
+    // function letters: c=create, x=extract, t=list, u=update, r=append
+    // modifier letters: v=verbose, w=interactive, f=file, b=blocking-factor,
+    //                   l=one-file-system, m=modification-time, o=no-same-owner
+    s.chars().all(|c| valid_chars.contains(c)) && s.chars().any(|c| "cxtur".contains(c))
+}
+
+/// Expands a POSIX tar keystring at `args[1]` into flag-style arguments
+/// suitable for clap.
+///
+/// Per the POSIX spec the key operand is a function letter optionally
+/// followed by modifier letters.  Modifier letters `f` and `b` consume
+/// the leading file operands (in the order they appear in the key).
+/// GNU tar is more permissive and accepts non-standard ordering (for
+/// example `fcv`/`vcf`), so we intentionally accept that compatibility mode.
+// Keep argv as `OsString` so non-UTF-8/path-native arguments are preserved.
+fn expand_posix_keystring(args: Vec<std::ffi::OsString>) -> Vec<std::ffi::OsString> {
+    // Only expand when args[1] is valid UTF-8 and looks like a keystring
+    let key = match args.get(1).and_then(|s| s.to_str()) {
+        Some(s) if is_posix_keystring(s) => s.to_string(),
+        _ => return args,
+    };
+
+    // args[2..] are the raw file operands (archive name, blocking factor, files)
+    let file_operands = &args[2..];
+    let mut result: Vec<std::ffi::OsString> = vec![args[0].clone()];
+    let mut file_idx = 0; // how many file operands have been consumed
+
+    for c in key.chars() {
+        match c {
+            'f' => {
+                // Next file operand is the archive name
+                result.push(std::ffi::OsString::from("-f"));
+                if file_idx < file_operands.len() {
+                    result.push(file_operands[file_idx].clone());
+                    file_idx += 1;
+                }
+            }
+            'b' => {
+                // Preserve parity with dash-style parsing by forwarding '-b'
+                // and its operand (when present). Since '-b' is currently
+                // unsupported, clap will report it as an unknown argument.
+                result.push(std::ffi::OsString::from("-b"));
+                if file_idx < file_operands.len() {
+                    result.push(file_operands[file_idx].clone());
+                    file_idx += 1;
+                }
+            }
+            other => {
+                result.push(std::ffi::OsString::from(format!("-{other}")));
+            }
+        }
+    }
+
+    // Any remaining file operands are the files to archive/extract
+    result.extend_from_slice(&file_operands[file_idx..]);
+    result
+}
 
 #[uucore::main]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
@@ -30,6 +98,10 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     } else {
         args_vec
     };
+
+    // Support POSIX keystring syntax: `tar cvf archive.tar files…`
+    // where the first operand is a key rather than a flag-prefixed option.
+    let args_to_parse = expand_posix_keystring(args_to_parse);
 
     let matches = match uu_app().try_get_matches_from(args_to_parse) {
         Ok(matches) => matches,
@@ -134,4 +206,117 @@ pub fn uu_app() -> Command {
                 .action(ArgAction::Append)
                 .value_parser(clap::value_parser!(PathBuf)),
         ])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // --- is_posix_keystring ---
+
+    #[test]
+    fn test_keystring_create() {
+        assert!(is_posix_keystring("c"));
+        assert!(is_posix_keystring("cf"));
+        assert!(is_posix_keystring("cvf"));
+        assert!(is_posix_keystring("cv"));
+    }
+
+    #[test]
+    fn test_keystring_extract() {
+        assert!(is_posix_keystring("x"));
+        assert!(is_posix_keystring("xf"));
+        assert!(is_posix_keystring("xvf"));
+    }
+
+    #[test]
+    fn test_keystring_rejects_dash_prefix() {
+        assert!(!is_posix_keystring("-c"));
+        assert!(!is_posix_keystring("-cf"));
+        assert!(!is_posix_keystring("-xvf"));
+    }
+
+    #[test]
+    fn test_keystring_rejects_no_function_letter() {
+        // modifier-only strings are not valid keystrings
+        assert!(!is_posix_keystring("f"));
+        assert!(!is_posix_keystring("vf"));
+        assert!(!is_posix_keystring("v"));
+    }
+
+    #[test]
+    fn test_keystring_rejects_invalid_chars() {
+        assert!(!is_posix_keystring("cz")); // 'z' is not a key char
+        assert!(!is_posix_keystring("c1")); // digits not allowed
+        assert!(!is_posix_keystring("archive.tar")); // typical filename
+    }
+
+    #[test]
+    fn test_keystring_rejects_empty() {
+        assert!(!is_posix_keystring(""));
+    }
+
+    // --- expand_posix_keystring ---
+
+    fn osvec(v: &[&str]) -> Vec<std::ffi::OsString> {
+        v.iter().map(std::ffi::OsString::from).collect()
+    }
+
+    #[test]
+    fn test_expand_cf() {
+        let input = osvec(&["tar", "cf", "archive.tar", "file.txt"]);
+        let expected = osvec(&["tar", "-c", "-f", "archive.tar", "file.txt"]);
+        assert_eq!(expand_posix_keystring(input), expected);
+    }
+
+    #[test]
+    fn test_expand_cvf() {
+        let input = osvec(&["tar", "cvf", "archive.tar", "file.txt"]);
+        let expected = osvec(&["tar", "-c", "-v", "-f", "archive.tar", "file.txt"]);
+        assert_eq!(expand_posix_keystring(input), expected);
+    }
+
+    #[test]
+    fn test_expand_xf() {
+        let input = osvec(&["tar", "xf", "archive.tar"]);
+        let expected = osvec(&["tar", "-x", "-f", "archive.tar"]);
+        assert_eq!(expand_posix_keystring(input), expected);
+    }
+
+    #[test]
+    fn test_expand_xvf() {
+        let input = osvec(&["tar", "xvf", "archive.tar"]);
+        let expected = osvec(&["tar", "-x", "-v", "-f", "archive.tar"]);
+        assert_eq!(expand_posix_keystring(input), expected);
+    }
+
+    #[test]
+    fn test_expand_preserves_dash_prefix_args() {
+        // When args already use '-' prefixes, no expansion should occur
+        let input = osvec(&["tar", "-cvf", "archive.tar", "file.txt"]);
+        assert_eq!(expand_posix_keystring(input.clone()), input);
+    }
+
+    #[test]
+    fn test_expand_f_before_files() {
+        // 'f' consumes only the archive name; remaining args are files
+        let input = osvec(&["tar", "cf", "archive.tar", "a.txt", "b.txt"]);
+        let expected = osvec(&["tar", "-c", "-f", "archive.tar", "a.txt", "b.txt"]);
+        assert_eq!(expand_posix_keystring(input), expected);
+    }
+
+    #[test]
+    fn test_expand_function_letter_only() {
+        // No 'f' modifier: no archive consumed from file operands
+        let input = osvec(&["tar", "c", "file.txt"]);
+        let expected = osvec(&["tar", "-c", "file.txt"]);
+        assert_eq!(expand_posix_keystring(input), expected);
+    }
+
+    #[test]
+    fn test_expand_cbf() {
+        let input = osvec(&["tar", "cbf", "20", "archive.tar", "file.txt"]);
+        let expected = osvec(&["tar", "-c", "-b", "20", "-f", "archive.tar", "file.txt"]);
+        assert_eq!(expand_posix_keystring(input), expected);
+    }
 }

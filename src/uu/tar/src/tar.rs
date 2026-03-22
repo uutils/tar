@@ -12,7 +12,7 @@ use uucore::error::UResult;
 use uucore::format_usage;
 
 const ABOUT: &str = "an archiving utility";
-const USAGE: &str = "tar key [FILE...]\n       tar {-c|-x} [-v] -f ARCHIVE [FILE...]";
+const USAGE: &str = "tar key [FILE...]\n       tar {-c|-t|-x} [-v] -f ARCHIVE [FILE...]";
 
 /// Determines whether a string looks like a POSIX tar keystring.
 ///
@@ -162,10 +162,19 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         return operations::create::create_archive(archive_path, &files, verbose);
     }
 
+    // Handle list operation
+    if matches.get_flag("list") {
+        let archive_path = matches.get_one::<PathBuf>("file").ok_or_else(|| {
+            uucore::error::USimpleError::new(64, "option requires an argument -- 'f'")
+        })?;
+
+        return operations::list::list_archive(archive_path, verbose);
+    }
+
     // If no operation specified, show error
     Err(uucore::error::USimpleError::new(
         2,
-        "You must specify one of the '-c' or '-x' options",
+        "You must specify one of the '-c', '-x', or '-t' options",
     ))
 }
 
@@ -179,14 +188,14 @@ pub fn uu_app() -> Command {
         .disable_help_flag(true)
         .args([
             // Main operation modes
-            arg!(-c --create "Create a new archive").conflicts_with("extract"),
+            arg!(-c --create "Create a new archive").conflicts_with_all(["extract", "list"]),
             // arg!(-d --diff "Find differences between archive and file system").alias("compare"),
             // arg!(-r --append "Append files to end of archive"),
-            // arg!(-t --list "List contents of archive"),
+            arg!(-t --list "List contents of archive").conflicts_with_all(["create", "extract"]),
             // arg!(-u --update "Only append files newer than copy in archive"),
             arg!(-x --extract "Extract files from archive")
                 .alias("get")
-                .conflicts_with("create"),
+                .conflicts_with_all(["create", "list"]),
             // Archive file
             arg!(-f --file <ARCHIVE> "Use archive file or device ARCHIVE")
                 .value_parser(clap::value_parser!(PathBuf)),

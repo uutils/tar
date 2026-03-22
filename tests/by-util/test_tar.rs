@@ -657,3 +657,98 @@ fn test_posix_b_matches_dash_prefix_failure() {
         .code_is(64)
         .stderr_contains("unexpected argument '-b'");
 }
+
+// List operation tests
+
+#[test]
+fn test_list_single_file() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.write("file.txt", "test content");
+    ucmd.args(&["-cf", "archive.tar", "file.txt"]).succeeds();
+
+    new_ucmd!()
+        .args(&["-tf", "archive.tar"])
+        .current_dir(at.as_string())
+        .succeeds()
+        .stdout_contains("file.txt");
+}
+
+#[test]
+fn test_list_multiple_files() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.write("file1.txt", "content1");
+    at.write("file2.txt", "content2");
+    at.write("file3.txt", "content3");
+
+    ucmd.args(&["-cf", "archive.tar", "file1.txt", "file2.txt", "file3.txt"])
+        .succeeds();
+
+    new_ucmd!()
+        .args(&["-tf", "archive.tar"])
+        .current_dir(at.as_string())
+        .succeeds()
+        .stdout_contains("file1.txt")
+        .stdout_contains("file2.txt")
+        .stdout_contains("file3.txt");
+}
+
+#[test]
+fn test_list_directory() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.mkdir("testdir");
+    at.write("testdir/file1.txt", "content1");
+    at.mkdir("testdir/subdir");
+    at.write("testdir/subdir/file2.txt", "content2");
+
+    ucmd.args(&["-cf", "archive.tar", "testdir"]).succeeds();
+
+    new_ucmd!()
+        .args(&["-tf", "archive.tar"])
+        .current_dir(at.as_string())
+        .succeeds()
+        .stdout_contains("testdir")
+        .stdout_contains("testdir/file1.txt")
+        .stdout_contains("testdir/subdir")
+        .stdout_contains("testdir/subdir/file2.txt");
+}
+
+#[test]
+fn test_list_verbose() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.write("file.txt", "content");
+    ucmd.args(&["-cf", "archive.tar", "file.txt"]).succeeds();
+
+    new_ucmd!()
+        .args(&["-tvf", "archive.tar"])
+        .current_dir(at.as_string())
+        .succeeds()
+        .stdout_contains("file.txt")
+        .stdout_contains("7 "); // verbose output includes file size; absent from plain -t listing
+}
+
+#[test]
+fn test_list_nonexistent_archive() {
+    new_ucmd!()
+        .args(&["-tf", "nonexistent.tar"])
+        .fails()
+        .code_is(2)
+        .stderr_contains("nonexistent.tar");
+}
+
+#[test]
+fn test_list_conflicts_with_create() {
+    new_ucmd!()
+        .args(&["-ctf", "archive.tar", "file.txt"])
+        .fails()
+        .code_is(2)
+        .stderr_contains("cannot be used with");
+}
+
+#[test]
+fn test_list_conflicts_with_extract() {
+    new_ucmd!()
+        .args(&["-xtf", "archive.tar"])
+        .fails()
+        .code_is(2)
+        .stderr_contains("cannot be used with");
+}

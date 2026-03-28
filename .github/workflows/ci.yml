@@ -4,6 +4,7 @@ name: Basic CI
 
 env:
   CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
 
 jobs:
   check:
@@ -12,8 +13,6 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-    env:
-      CARGO_INCREMENTAL: 0
     steps:
       - uses: actions/checkout@v6
       - run: cargo check
@@ -24,8 +23,6 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-    env:
-      CARGO_INCREMENTAL: 0
     steps:
       - uses: actions/checkout@v6
       - run: cargo test --all
@@ -41,7 +38,6 @@ jobs:
           - { os: macos-latest   , features: macos }
           - { os: windows-latest , features: windows }
     env:
-      CARGO_INCREMENTAL: 0
       # Use -Z
       RUSTC_BOOTSTRAP: 1
     steps:
@@ -59,7 +55,6 @@ jobs:
     - name: Test
       run: cargo test --no-fail-fast
       env:
-        CARGO_INCREMENTAL: "0"
         RUSTC_WRAPPER: ""
         RUSTFLAGS: "-Cinstrument-coverage -Zcoverage-options=branch -Ccodegen-units=1 -Copt-level=0 -Coverflow-checks=off -Zpanic_abort_tests -Cpanic=abort"
         RUSTDOCFLAGS: "-Cpanic=abort"
@@ -68,7 +63,6 @@ jobs:
         RUSTC_BOOTSTRAP: 1
     - name: "`grcov` ~ install"
       env:
-        CARGO_INCREMENTAL: 0
         # Use -Z
         RUSTC_BOOTSTRAP: 1
       id: build_grcov
@@ -90,7 +84,6 @@ jobs:
 #        use-tool-cache: false
     - name: Generate coverage data (via `grcov`)
       env:
-        CARGO_INCREMENTAL: 0
         # Use -Z
         RUSTC_BOOTSTRAP: 1
       id: coverage

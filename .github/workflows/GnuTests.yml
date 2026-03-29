@@ -33,11 +33,6 @@ jobs:
         path: 'uutils'
         persist-credentials: false
     
-    - uses: dtolnay/rust-toolchain@master
-      with:
-        toolchain: stable
-        components: rustfmt
-    
     - uses: Swatinem/rust-cache@v2
       with:
         workspaces: "./uutils -> target"

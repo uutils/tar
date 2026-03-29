@@ -63,7 +63,7 @@ jobs:
         python uutils/util/gnu-json-result.py gnu/tests > ${{ env.TEST_FULL_SUMMARY_FILE }}
 
     - name: Upload full results
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: gnu-full-result
         path: ${{ env.TEST_FULL_SUMMARY_FILE }}
@@ -73,7 +73,7 @@ jobs:
         find gnu/tests -mindepth 2 -name '*.log' -exec gzip {} \;
 
     - name: Upload logs
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: test-logs
         path: |
@@ -108,7 +108,7 @@ jobs:
         path: "reference"
 
     - name: Download results
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         name: gnu-full-result
         path: results
@@ -159,20 +159,20 @@ jobs:
         fi
 
     - name: Upload summary
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: test-summary
         path: "${{ env.TEST_SUMMARY_FILE }}"
 
     - name: Upload aggregated results
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: aggregated-result
         path: ${{ env.AGGREGATED_SUMMARY_FILE }}
 
     - name: Upload comment artifact
       if: github.event_name == 'pull_request'
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: comment
         path: comment

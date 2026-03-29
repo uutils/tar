@@ -48,9 +48,11 @@ jobs:
         sudo apt-get install -y autopoint gperf gdb python3-pyinotify valgrind libacl1-dev libattr1-dev libcap-dev libselinux1-dev attr quilt gettext
     
     - name: Build binaries and GNU tar
+      env: 
+        PROFILE: "release"
       run: |
         cd 'uutils'
-        bash util/build-gnu.sh --release-build
+        bash util/build-gnu.sh
 
     - name: Run GNU tests
       continue-on-error: true

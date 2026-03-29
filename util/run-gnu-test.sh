@@ -2,18 +2,9 @@
 set -e
 
 # Use GNU version for make, nproc, readlink on *BSD
-case "$OSTYPE" in
-    *bsd*)
-        MAKE="gmake"
-        NPROC="gnproc"
-        READLINK="greadlink"
-        ;;
-    *)
-        MAKE="make"
-        NPROC="nproc"
-        READLINK="readlink"
-        ;;
-esac
+MAKE=$(command -v gmake || command -v make)
+NPROC=$(command -v gnproc || command -v nproc)
+READLINK=$(command -v greadlink || command -v readlink)
 
 ME="${0}"
 ME_dir="$(dirname -- "$("${READLINK:-readlink}" -fm -- "${ME}")")"

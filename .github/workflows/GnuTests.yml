@@ -70,15 +70,15 @@ jobs:
 
     - name: Compress logs
       run : |
-        gzip gnu/tests/*/*.log
+        find gnu/tests -mindepth 2 -name '*.log' -exec gzip {} \;
 
     - name: Upload logs
       uses: actions/upload-artifact@v4
       with:
         name: test-logs
         path: |
-          gnu/tests/*.log
-          gnu/tests/*/*.log.gz
+          gnu/tests/testsuite.log
+          gnu/tests/**/*.log.gz
 
   aggregate:
     needs: [native]

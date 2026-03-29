@@ -28,7 +28,7 @@ jobs:
         shell: bash
     steps:
     - name: Checkout code (uutils)
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
       with:
         path: 'uutils'
         persist-credentials: false
@@ -93,7 +93,7 @@ jobs:
         shell: bash
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
       with:
         path: 'uutils'
         persist-credentials: false

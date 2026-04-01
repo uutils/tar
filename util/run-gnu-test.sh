@@ -39,4 +39,19 @@ echo "Running GNU tar tests..."
 # Run with timeout and make check
 # We use $* to pass any additional user arguments (e.g. TESTSUITEFLAGS="1-5")
 cp "${TAR}" src/tar
+touch src/tar
+
+# Generate the testsuite script (without running it)
+"${MAKE}" -C tests testsuite
+
+# Test 1 (version.at) checks `tar --version` against the expected GNU tar
+# version string. When it doesn't match, it creates a .badversion file which
+# causes AT_XFAIL_IF to mark *every* subsequent test as "expected failure",
+# hiding real pass/fail results. Patch the generated testsuite script to
+# prevent this.
+sed 's|cat >$XFAILFILE|cat >/dev/null|' tests/testsuite > tests/testsuite.tmp
+mv tests/testsuite.tmp tests/testsuite
+chmod +x tests/testsuite
+rm -f tests/.badversion
+
 timeout -sKILL 4h "${MAKE}" -j "$("${NPROC}")" check "$@"

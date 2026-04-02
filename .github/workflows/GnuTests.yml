@@ -7,7 +7,7 @@ on:
       - '*'
 
 permissions:
-  contents: read
+  contents: write # Publish tar instead of discarding
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -48,6 +48,19 @@ jobs:
       run: |
         cd 'uutils'
         bash util/build-gnu.sh
+        strip -s target/release/tarapp
+        zstd -19 target/release/tarapp -o ../tar-x86_64-unknown-linux-gnu.zst
+    - name: Publish latest commit
+      uses: softprops/action-gh-release@v2
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      with:
+        tag_name: latest-commit
+        draft: false
+        prerelease: true
+        files: |
+          tar-x86_64-unknown-linux-gnu.zst
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Run GNU tests
       continue-on-error: true

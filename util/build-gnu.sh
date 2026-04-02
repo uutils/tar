@@ -42,7 +42,8 @@ cd "${path_GNU}"
 if [ ! -f Makefile ]; then
     echo "Configuring GNU tar..."
     # Configure to build native tar (needed for test suite generation)
-    ./configure --quiet
+    # CFLAGS for build time
+    CFLAGS="${CFLAGS} -pipe -O0" ./configure --quiet
 fi
 
 echo "Building GNU tar (for test suite)..."

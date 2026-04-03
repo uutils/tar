@@ -11,7 +11,9 @@ Rust reimplementation of the tar utility.
 
 ## Installation
 
-Ensure you have Rust installed on your system. You can install Rust through [rustup](https://rustup.rs/).
+We provide a [pre-built binary from main branch](https://github.com/uutils/tar/releases/tag/latest-commit).
+
+To build tar from source, install Rust on your system. You can install Rust via [rustup](https://rustup.rs/).
 
 Clone the repository and build the project using Cargo:
 

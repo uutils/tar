@@ -16,7 +16,7 @@ repository = "https://github.com/uutils/tar"
 readme = "README.md"
 keywords = ["tar", "uutils", "cross-platform", "cli", "utility"]
 categories = ["command-line-utilities"]
-rust-version = "1.85.0"
+rust-version = "1.94.0"
 edition = "2024"
 
 build = "build.rs"

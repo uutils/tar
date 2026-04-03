@@ -17,12 +17,8 @@ pub fn list_archive(archive_path: &Path, verbose: bool) -> UResult<()> {
         File::open(archive_path).map_err(|e| TarError::from_io_error(e, archive_path))?;
     let mut archive = Archive::new(file);
 
-    for entry_result in archive
-        .entries()
-        .map_err(|e| TarError::InvalidArchive(format!("Failed to read archive entries: {e}")))?
-    {
-        let entry = entry_result
-            .map_err(|e| TarError::InvalidArchive(format!("Failed to read entry: {e}")))?;
+    for entry_result in archive.entries().map_err(TarError::CannotReadEntries)? {
+        let entry = entry_result.map_err(TarError::CannotReadEntry)?;
 
         if verbose {
             // Collect all header fields into owned values before borrowing entry for the path,
@@ -49,9 +45,7 @@ pub fn list_archive(archive_path: &Path, verbose: bool) -> UResult<()> {
                 )
             };
 
-            let path = entry
-                .path()
-                .map_err(|e| TarError::InvalidArchive(format!("Failed to read entry path: {e}")))?;
+            let path = entry.path().map_err(TarError::CannotReadEntryPath)?;
 
             let type_char = match entry_type {
                 tar::EntryType::Directory => 'd',
@@ -79,9 +73,7 @@ pub fn list_archive(archive_path: &Path, verbose: bool) -> UResult<()> {
                 path.display()
             );
         } else {
-            let path = entry
-                .path()
-                .map_err(|e| TarError::InvalidArchive(format!("Failed to read entry path: {e}")))?;
+            let path = entry.path().map_err(TarError::CannotReadEntryPath)?;
 
             println!("{}", path.display());
         }

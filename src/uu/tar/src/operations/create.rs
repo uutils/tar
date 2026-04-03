@@ -27,12 +27,9 @@ use uucore::error::UResult;
 /// - Files cannot be added due to I/O or permission errors
 pub fn create_archive(archive_path: &Path, files: &[&Path], verbose: bool) -> UResult<()> {
     // Create the output file
-    let file = File::create(archive_path).map_err(|e| {
-        TarError::TarOperationError(format!(
-            "Cannot create archive '{}': {}",
-            archive_path.display(),
-            e
-        ))
+    let file = File::create(archive_path).map_err(|e| TarError::CannotCreateArchive {
+        path: archive_path.to_path_buf(),
+        source: e,
     })?;
 
     // Create Builder instance
@@ -42,7 +39,10 @@ pub fn create_archive(archive_path: &Path, files: &[&Path], verbose: bool) -> UR
     for &path in files {
         // Check if path exists
         if !path.exists() {
-            return Err(TarError::FileNotFound(path.display().to_string()).into());
+            return Err(TarError::FileNotFound {
+                path: path.to_path_buf(),
+            }
+            .into());
         }
 
         if verbose {
@@ -81,30 +81,24 @@ pub fn create_archive(archive_path: &Path, files: &[&Path], verbose: bool) -> UR
         // If it's a directory, recursively add all contents
         if path.is_dir() {
             builder.append_dir_all(normalized_name, path).map_err(|e| {
-                TarError::TarOperationError(format!(
-                    "Failed to add directory '{}': {}",
-                    path.display(),
-                    e
-                ))
+                TarError::CannotAddDirectory {
+                    path: path.to_path_buf(),
+                    source: e,
+                }
             })?;
         } else {
             // For files, add them directly
             builder
                 .append_path_with_name(path, normalized_name)
-                .map_err(|e| {
-                    TarError::TarOperationError(format!(
-                        "Failed to add file '{}': {}",
-                        path.display(),
-                        e
-                    ))
+                .map_err(|e| TarError::CannotAddFile {
+                    path: path.to_path_buf(),
+                    source: e,
                 })?;
         }
     }
 
     // Finish writing the archive
-    builder
-        .finish()
-        .map_err(|e| TarError::TarOperationError(format!("Failed to finalize archive: {e}")))?;
+    builder.finish().map_err(TarError::CannotFinalizeArchive)?;
 
     Ok(())
 }

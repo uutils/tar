@@ -43,6 +43,7 @@ phf = "0.13.0"
 phf_codegen = "0.13.0"
 rand = { version = "0.10.0" }
 regex = "1.10.4"
+thiserror = "2.0.3"
 uucore = { git = "https://github.com/uutils/coreutils" }
 uutests = { git = "https://github.com/uutils/coreutils" }
 tar = "0.4"

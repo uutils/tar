@@ -180,7 +180,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
 
 #[allow(clippy::cognitive_complexity)]
 pub fn uu_app() -> Command {
-    Command::new(uucore::util_name())
+    Command::new("tar (uutils)")
         .version(crate_version!())
         .about(ABOUT)
         .override_usage(format_usage(USAGE))

@@ -6,7 +6,10 @@
 pub mod errors;
 mod operations;
 
+use crate::errors::TarError;
 use clap::{arg, crate_version, ArgAction, Command};
+use std::fs::File;
+use std::io;
 use std::path::{Path, PathBuf};
 use uucore::error::UResult;
 use uucore::format_usage;
@@ -138,7 +141,15 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
             uucore::error::USimpleError::new(64, "option requires an argument -- 'f'")
         })?;
 
-        return operations::extract::extract_archive(archive_path, verbose);
+        let input: Box<dyn io::Read> = if archive_path == Path::new("-") {
+            Box::new(io::stdin())
+        } else {
+            Box::new(
+                File::open(archive_path).map_err(|e| TarError::from_io_error(e, archive_path))?,
+            )
+        };
+
+        return operations::extract::extract_archive(input, verbose);
     }
 
     // Handle create operation
@@ -159,7 +170,25 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
             ));
         }
 
-        return operations::create::create_archive(archive_path, &files, verbose);
+        let output_is_stdout = archive_path == Path::new("-");
+        let output: Box<dyn io::Write> = if output_is_stdout {
+            Box::new(io::stdout())
+        } else {
+            Box::new(
+                File::create(archive_path).map_err(|e| TarError::CannotCreateArchive {
+                    path: archive_path.clone(),
+                    source: e,
+                })?,
+            )
+        };
+
+        let status_output: Box<dyn io::Write> = if output_is_stdout {
+            Box::new(io::stderr())
+        } else {
+            Box::new(io::stdout())
+        };
+
+        return operations::create::create_archive(output, status_output, &files, verbose);
     }
 
     // Handle list operation
@@ -168,7 +197,15 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
             uucore::error::USimpleError::new(64, "option requires an argument -- 'f'")
         })?;
 
-        return operations::list::list_archive(archive_path, verbose);
+        let input: Box<dyn io::Read> = if archive_path == Path::new("-") {
+            Box::new(io::stdin())
+        } else {
+            Box::new(
+                File::open(archive_path).map_err(|e| TarError::from_io_error(e, archive_path))?,
+            )
+        };
+
+        return operations::list::list_archive(input, verbose);
     }
 
     // If no operation specified, show error

@@ -146,6 +146,17 @@ fn test_create_verbose() {
 }
 
 #[test]
+fn test_create_verbose_to_stdout_uses_stderr() {
+    let (at, mut ucmd) = at_and_ucmd!();
+
+    at.write("file.txt", "hello");
+
+    ucmd.args(&["-cvf", "-", "file.txt"])
+        .succeeds()
+        .stderr_contains("file.txt");
+}
+
+#[test]
 fn test_create_empty_archive_fails() {
     new_ucmd!()
         .args(&["-cf", "archive.tar"])
@@ -751,4 +762,112 @@ fn test_list_conflicts_with_extract() {
         .fails()
         .code_is(2)
         .stderr_contains("cannot be used with");
+}
+
+// stdin/stdout (-f -) tests
+
+#[test]
+fn test_create_to_stdout() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.write("file.txt", "hello");
+
+    let result = ucmd.args(&["-cf", "-", "file.txt"]).succeeds();
+    let bytes = result.stdout();
+    // A tar archive is at least two blocks: one header + two end-of-archive blocks
+    assert!(
+        bytes.len() >= TAR_BLOCK_SIZE,
+        "stdout should contain tar data (got {} bytes)",
+        bytes.len()
+    );
+    // The first 100 bytes of a tar header are the file name
+    let header_prefix = std::str::from_utf8(&bytes[..100]).unwrap_or("");
+    assert!(
+        header_prefix.contains("file.txt"),
+        "tar header should contain filename"
+    );
+}
+
+#[test]
+fn test_create_verbose_to_stdout_keeps_stdout_as_tar_data() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.write("file.txt", "hello");
+
+    let result = ucmd.args(&["-cvf", "-", "file.txt"]).succeeds();
+    let bytes = result.stdout();
+    let header_prefix = std::str::from_utf8(&bytes[..100]).unwrap_or("");
+
+    assert!(
+        bytes.len() >= TAR_BLOCK_SIZE,
+        "stdout should contain tar data (got {} bytes)",
+        bytes.len()
+    );
+    assert!(
+        header_prefix.contains("file.txt"),
+        "tar header should contain filename"
+    );
+    assert_eq!(&bytes[..8], b"file.txt");
+}
+
+#[test]
+fn test_create_absolute_path_to_stdout_uses_stderr_for_normalization_notice() {
+    let (at, mut ucmd) = at_and_ucmd!();
+
+    let mut file_abs_path = PathBuf::from(at.root_dir_resolved());
+    file_abs_path.push("file1.txt");
+
+    at.write(&file_abs_path.display().to_string(), "content1");
+
+    let result = ucmd
+        .args(&["-cf", "-", &file_abs_path.display().to_string()])
+        .succeeds();
+    result.stderr_contains("Removing leading");
+    let bytes = result.stdout();
+    let header_prefix = std::str::from_utf8(&bytes[..100]).unwrap_or("");
+
+    assert!(
+        bytes.len() >= TAR_BLOCK_SIZE,
+        "stdout should contain tar data (got {} bytes)",
+        bytes.len()
+    );
+    assert!(
+        !header_prefix.contains("Removing leading"),
+        "stdout should not contain normalization notices"
+    );
+}
+
+#[test]
+fn test_list_from_stdin() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.write("file.txt", "hello");
+
+    // Create archive to a file in the same sandbox
+    new_ucmd!()
+        .args(&["-cf", &at.plus_as_string("archive.tar"), "file.txt"])
+        .current_dir(at.as_string())
+        .succeeds();
+
+    let archive_bytes = at.read_bytes("archive.tar");
+    ucmd.args(&["-tf", "-"])
+        .pipe_in(archive_bytes)
+        .succeeds()
+        .stdout_contains("file.txt");
+}
+
+#[test]
+fn test_extract_from_stdin() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.write("file.txt", "hello world");
+
+    // Create archive to a file in the same sandbox
+    new_ucmd!()
+        .args(&["-cf", &at.plus_as_string("archive.tar"), "file.txt"])
+        .current_dir(at.as_string())
+        .succeeds();
+
+    at.remove("file.txt");
+
+    let archive_bytes = at.read_bytes("archive.tar");
+    ucmd.args(&["-xf", "-"]).pipe_in(archive_bytes).succeeds();
+
+    assert_eq!(at.read("file.txt"), "hello world");
 }

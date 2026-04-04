@@ -4,8 +4,7 @@
 // file that was distributed with this source code.
 
 use crate::errors::TarError;
-use std::fs::File;
-use std::path::Path;
+use std::io::Read;
 use tar::Archive;
 use uucore::error::UResult;
 
@@ -22,17 +21,9 @@ use uucore::error::UResult;
 /// - The archive file cannot be opened
 /// - The archive format is invalid
 /// - Files cannot be extracted due to I/O or permission errors
-pub fn extract_archive(archive_path: &Path, verbose: bool) -> UResult<()> {
-    // Open the archive file
-    let file = File::open(archive_path).map_err(|e| TarError::from_io_error(e, archive_path))?;
-
+pub fn extract_archive(input: Box<dyn Read>, verbose: bool) -> UResult<()> {
     // Create Archive instance
-    let mut archive = Archive::new(file);
-
-    // Extract to current directory
-    if verbose {
-        println!("Extracting archive: {}", archive_path.display());
-    }
+    let mut archive = Archive::new(input);
 
     // Iterate through entries for verbose output and error handling
     for entry_result in archive.entries().map_err(TarError::CannotReadEntries)? {

@@ -35,17 +35,13 @@ pub fn extract_archive(archive_path: &Path, verbose: bool) -> UResult<()> {
     }
 
     // Iterate through entries for verbose output and error handling
-    for entry_result in archive
-        .entries()
-        .map_err(|e| TarError::InvalidArchive(format!("Failed to read archive entries: {e}")))?
-    {
-        let mut entry = entry_result
-            .map_err(|e| TarError::InvalidArchive(format!("Failed to read entry: {e}")))?;
+    for entry_result in archive.entries().map_err(TarError::CannotReadEntries)? {
+        let mut entry = entry_result.map_err(TarError::CannotReadEntry)?;
 
         // Get the path before unpacking (clone it so we can use it after borrowing entry mutably)
         let path = entry
             .path()
-            .map_err(|e| TarError::InvalidArchive(format!("Failed to read entry path: {e}")))?
+            .map_err(TarError::CannotReadEntryPath)?
             .to_path_buf();
 
         if verbose {
@@ -53,8 +49,9 @@ pub fn extract_archive(archive_path: &Path, verbose: bool) -> UResult<()> {
         }
 
         // Unpack the entry
-        entry.unpack_in(".").map_err(|e| {
-            TarError::TarOperationError(format!("Failed to extract '{}': {}", path.display(), e))
+        entry.unpack_in(".").map_err(|e| TarError::CannotExtract {
+            path: path.clone(),
+            source: e,
         })?;
     }
 

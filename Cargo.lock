@@ -1405,6 +1405,7 @@ dependencies = [
  "clap",
  "regex",
  "tar",
+ "thiserror",
  "uucore",
 ]
 

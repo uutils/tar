@@ -3,62 +3,70 @@
 // For the full copyright and license information, please view the LICENSE
 // file that was distributed with this source code.
 
-use std::fmt;
 use std::io;
+use std::path::PathBuf;
+use thiserror::Error;
 use uucore::error::UError;
 
 /// Error types for tar operations
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum TarError {
-    /// I/O error occurred
-    IoError(io::Error),
-    /// Invalid archive format or corrupted archive
-    InvalidArchive(String),
-    /// File or directory not found
-    FileNotFound(String),
-    /// Permission denied
-    PermissionDenied(String),
-    /// General tar operation error
-    TarOperationError(String),
-}
+    /// I/O error occurred while reading/writing
+    #[error("{0}")]
+    Io(#[from] io::Error),
 
-/// Implements display formatting for TarError.
-impl fmt::Display for TarError {
-    /// Formats the error for display to users
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            TarError::IoError(err) => write!(f, "{err}"),
-            TarError::InvalidArchive(msg) => write!(f, "{msg}"),
-            TarError::FileNotFound(path) => {
-                write!(f, "{path}: Cannot open: No such file or directory")
-            }
-            TarError::PermissionDenied(path) => {
-                write!(f, "{path}: Cannot open: Permission denied")
-            }
-            TarError::TarOperationError(msg) => write!(f, "{msg}"),
-        }
-    }
+    /// Cannot read entries from archive
+    #[error("tar: Cannot read archive entries: {0}")]
+    CannotReadEntries(io::Error),
+
+    /// Cannot read an individual archive entry
+    #[error("tar: Cannot read archive entry: {0}")]
+    CannotReadEntry(io::Error),
+
+    /// Cannot read the path of an archive entry
+    #[error("tar: Cannot read entry path: {0}")]
+    CannotReadEntryPath(io::Error),
+
+    /// File or directory not found
+    #[error("tar: {path}: Cannot open: No such file or directory")]
+    FileNotFound { path: PathBuf },
+
+    /// Permission denied when accessing file
+    #[error("tar: {path}: Cannot open: Permission denied")]
+    PermissionDenied { path: PathBuf },
+
+    /// Cannot create archive file
+    #[error("tar: Cannot create archive '{path}': {source}")]
+    CannotCreateArchive { path: PathBuf, source: io::Error },
+
+    /// Cannot add a directory to the archive
+    #[error("tar: Cannot add directory '{path}': {source}")]
+    CannotAddDirectory { path: PathBuf, source: io::Error },
+
+    /// Cannot add a file to the archive
+    #[error("tar: Cannot add file '{path}': {source}")]
+    CannotAddFile { path: PathBuf, source: io::Error },
+
+    /// Cannot extract an archive entry
+    #[error("tar: Cannot extract '{path}': {source}")]
+    CannotExtract { path: PathBuf, source: io::Error },
+
+    /// Cannot finalize the archive
+    #[error("tar: Cannot finalize archive: {0}")]
+    CannotFinalizeArchive(io::Error),
 }
 
 impl TarError {
     /// Create a TarError from an io::Error with file path context
     pub fn from_io_error(err: io::Error, path: &std::path::Path) -> Self {
         match err.kind() {
-            io::ErrorKind::NotFound => TarError::FileNotFound(path.display().to_string()),
-            io::ErrorKind::PermissionDenied => {
-                TarError::PermissionDenied(path.display().to_string())
-            }
-            _ => TarError::IoError(err),
-        }
-    }
-}
-
-impl std::error::Error for TarError {
-    /// Returns the underlying error cause, if any
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            TarError::IoError(err) => Some(err),
-            _ => None,
+            io::ErrorKind::NotFound => TarError::FileNotFound {
+                path: path.to_path_buf(),
+            },
+            io::ErrorKind::PermissionDenied => TarError::PermissionDenied {
+                path: path.to_path_buf(),
+            },
+            _ => TarError::Io(err),
         }
     }
 }
@@ -66,20 +74,6 @@ impl std::error::Error for TarError {
 impl UError for TarError {
     /// Returns the exit code for this error type
     fn code(&self) -> i32 {
-        match self {
-            TarError::IoError(_) => 2,
-            TarError::InvalidArchive(_) => 2,
-            TarError::FileNotFound(_) => 2,
-            TarError::PermissionDenied(_) => 2,
-            TarError::TarOperationError(_) => 2,
-        }
-    }
-}
-
-impl From<io::Error> for TarError {
-    /// Converts io::Error into the appropriate TarError variant
-    fn from(err: io::Error) -> Self {
-        // For generic io::Error without context, just wrap it
-        TarError::IoError(err)
+        2 // TarError variants exit with code 2; argument/usage errors use code 64 (see tar.rs)
     }
 }

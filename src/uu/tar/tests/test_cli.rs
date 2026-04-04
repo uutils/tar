@@ -32,3 +32,14 @@ fn test_verbose_flag_parsing() {
     assert!(matches.get_flag("verbose"));
     assert!(matches.get_flag("create"));
 }
+
+#[test]
+fn test_zstd_flag_parsing() {
+    let app = uu_app();
+    let result =
+        app.try_get_matches_from(vec!["tar", "--zstd", "-cf", "archive.tar.zst", "file.txt"]);
+    assert!(result.is_ok());
+    let matches = result.unwrap();
+    assert!(matches.get_flag("zstd"));
+    assert!(matches.get_flag("create"));
+}

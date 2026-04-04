@@ -14,7 +14,7 @@ fn test_tar_error_display() {
     };
     assert_eq!(
         err.to_string(),
-        "test.txt: Cannot open: No such file or directory"
+        "tar: test.txt: Cannot open: No such file or directory"
     );
 
     let err = TarError::PermissionDenied {
@@ -22,7 +22,7 @@ fn test_tar_error_display() {
     };
     assert_eq!(
         err.to_string(),
-        "/root/file: Cannot open: Permission denied"
+        "tar: /root/file: Cannot open: Permission denied"
     );
 }
 
@@ -106,7 +106,7 @@ fn test_from_io_error_not_found() {
     assert!(matches!(tar_err, TarError::FileNotFound { .. }));
     assert_eq!(
         tar_err.to_string(),
-        "myfile.txt: Cannot open: No such file or directory"
+        "tar: myfile.txt: Cannot open: No such file or directory"
     );
 }
 
@@ -118,7 +118,7 @@ fn test_from_io_error_permission_denied() {
     assert!(matches!(tar_err, TarError::PermissionDenied { .. }));
     assert_eq!(
         tar_err.to_string(),
-        "/root/secret: Cannot open: Permission denied"
+        "tar: /root/secret: Cannot open: Permission denied"
     );
 }
 

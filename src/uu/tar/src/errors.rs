@@ -28,20 +28,16 @@ pub enum TarError {
     CannotReadEntryPath(io::Error),
 
     /// File or directory not found
-    #[error("{path}: Cannot open: No such file or directory")]
+    #[error("tar: {path}: Cannot open: No such file or directory")]
     FileNotFound { path: PathBuf },
 
     /// Permission denied when accessing file
-    #[error("{path}: Cannot open: Permission denied")]
+    #[error("tar: {path}: Cannot open: Permission denied")]
     PermissionDenied { path: PathBuf },
 
     /// Cannot create archive file
     #[error("tar: Cannot create archive '{path}': {source}")]
     CannotCreateArchive { path: PathBuf, source: io::Error },
-
-    /// Cannot open archive file
-    #[error("tar: Cannot open archive '{path}': {source}")]
-    CannotOpenArchive { path: PathBuf, source: io::Error },
 
     /// Cannot add a directory to the archive
     #[error("tar: Cannot add directory '{path}': {source}")]

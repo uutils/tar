@@ -4,18 +4,22 @@
 // file that was distributed with this source code.
 
 use crate::errors::TarError;
+use crate::operations::compression::open_archive_reader;
+use crate::CompressionMode;
 use chrono::{TimeZone, Utc};
-use std::fs::File;
 use std::path::Path;
 use tar::Archive;
 use uucore::error::UResult;
 use uucore::fs::display_permissions_unix;
 
 /// List the contents of a tar archive, printing one entry per line.
-pub fn list_archive(archive_path: &Path, verbose: bool) -> UResult<()> {
-    let file: File =
-        File::open(archive_path).map_err(|e| TarError::from_io_error(e, archive_path))?;
-    let mut archive = Archive::new(file);
+pub fn list_archive(
+    archive_path: &Path,
+    verbose: bool,
+    compression: CompressionMode,
+) -> UResult<()> {
+    let reader = open_archive_reader(archive_path, compression)?;
+    let mut archive = Archive::new(reader);
 
     for entry_result in archive
         .entries()
@@ -88,4 +92,48 @@ pub fn list_archive(archive_path: &Path, verbose: bool) -> UResult<()> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CompressionMode;
+    use std::fs;
+    use tar::Builder;
+    use tempfile::tempdir;
+
+    fn write_zstd_tar(archive_path: &Path) {
+        let mut tar_bytes = Vec::new();
+        {
+            let mut builder = Builder::new(&mut tar_bytes);
+            let mut header = tar::Header::new_gnu();
+            header.set_mode(0o644);
+            header.set_size("hello".len() as u64);
+            header.set_cksum();
+            builder
+                .append_data(&mut header, "listed.txt", std::io::Cursor::new("hello"))
+                .unwrap();
+            builder.finish().unwrap();
+        }
+        let compressed = zstd::stream::encode_all(std::io::Cursor::new(tar_bytes), 0).unwrap();
+        fs::write(archive_path, compressed).unwrap();
+    }
+
+    #[test]
+    fn test_list_archive_with_zstd_non_verbose() {
+        let tempdir = tempdir().unwrap();
+        let archive_path = tempdir.path().join("archive.tar.zst");
+        write_zstd_tar(&archive_path);
+
+        list_archive(&archive_path, false, CompressionMode::Zstd).unwrap();
+    }
+
+    #[test]
+    fn test_list_archive_with_zstd_verbose() {
+        let tempdir = tempdir().unwrap();
+        let archive_path = tempdir.path().join("archive.tar.zst");
+        write_zstd_tar(&archive_path);
+
+        list_archive(&archive_path, true, CompressionMode::Zstd).unwrap();
+    }
 }

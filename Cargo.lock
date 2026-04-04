@@ -1226,6 +1226,7 @@ dependencies = [
  "uutests",
  "xattr",
  "zip",
+ "zstd",
 ]
 
 [[package]]
@@ -1405,7 +1406,9 @@ dependencies = [
  "clap",
  "regex",
  "tar",
+ "tempfile",
  "uucore",
+ "zstd",
 ]
 
 [[package]]

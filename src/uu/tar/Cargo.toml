@@ -18,6 +18,7 @@ clap = { workspace = true }
 regex = { workspace = true }
 tar = { workspace = true }
 chrono = { workspace = true }
+zstd = { workspace = true }
 
 [lib]
 path = "src/tar.rs"
@@ -25,3 +26,6 @@ path = "src/tar.rs"
 [[bin]]
 name = "tar"
 path = "src/main.rs"
+
+[dev-dependencies]
+tempfile = { workspace = true }

@@ -3,8 +3,10 @@
 // For the full copyright and license information, please view the LICENSE
 // file that was distributed with this source code.
 
+use std::io::{Cursor, Read};
 use std::path::{self, PathBuf};
 
+use tar_rs_crate::{Archive as TarRsArchive, Builder as TarRsBuilder, Header as TarRsHeader};
 use uutests::{at_and_ucmd, new_ucmd};
 
 /// Size of a single tar block in bytes (per POSIX specification).
@@ -112,6 +114,44 @@ fn test_create_multiple_files() {
 
     assert!(at.file_exists("archive.tar"));
     assert!(at.read_bytes("archive.tar").len() > TAR_BLOCK_SIZE); // Basic sanity check
+}
+
+#[test]
+fn test_create_zstd_archive() {
+    let (at, mut ucmd) = at_and_ucmd!();
+
+    at.write("file1.txt", "test content");
+
+    ucmd.args(&["--zstd", "-cf", "archive.tar.zst", "file1.txt"])
+        .succeeds()
+        .no_output();
+
+    assert!(at.file_exists("archive.tar.zst"));
+    assert!(!at.read_bytes("archive.tar.zst").is_empty());
+}
+
+#[test]
+fn test_create_zstd_archive_is_readable_by_independent_readers() {
+    let (at, mut ucmd) = at_and_ucmd!();
+
+    at.write("file1.txt", "test content");
+
+    ucmd.args(&["--zstd", "-cf", "archive.tar.zst", "file1.txt"])
+        .succeeds()
+        .no_output();
+
+    let compressed = at.read_bytes("archive.tar.zst");
+    let decoded = zstd::stream::decode_all(Cursor::new(compressed)).unwrap();
+    let mut archive = TarRsArchive::new(Cursor::new(decoded));
+    let mut entries = archive.entries().unwrap();
+    let mut entry = entries.next().unwrap().unwrap();
+
+    assert_eq!(entry.path().unwrap().to_str(), Some("file1.txt"));
+
+    let mut contents = String::new();
+    entry.read_to_string(&mut contents).unwrap();
+    assert_eq!(contents, "test content");
+    assert!(entries.next().is_none());
 }
 
 #[test]
@@ -264,6 +304,125 @@ fn test_extract_multiple_files() {
     assert!(at.file_exists("file2.txt"));
     assert_eq!(at.read("file1.txt"), "content1");
     assert_eq!(at.read("file2.txt"), "content2");
+}
+
+#[test]
+fn test_list_zstd_archive() {
+    let (at, mut ucmd) = at_and_ucmd!();
+
+    at.write("file1.txt", "content1");
+    at.write("file2.txt", "content2");
+
+    ucmd.args(&["--zstd", "-cf", "archive.tar.zst", "file1.txt", "file2.txt"])
+        .succeeds();
+
+    new_ucmd!()
+        .args(&["--zstd", "-tf", "archive.tar.zst"])
+        .current_dir(at.as_string())
+        .succeeds()
+        .stdout_contains("file1.txt")
+        .stdout_contains("file2.txt");
+}
+
+#[test]
+fn test_list_zstd_archive_created_outside_tar() {
+    let at = &at_and_ucmd!().0;
+
+    let mut tar_bytes = Vec::new();
+    {
+        let mut builder = TarRsBuilder::new(&mut tar_bytes);
+        let mut header = TarRsHeader::new_gnu();
+        header.set_mode(0o644);
+        header.set_size("content".len() as u64);
+        header.set_cksum();
+        builder
+            .append_data(&mut header, "external.txt", Cursor::new("content"))
+            .unwrap();
+        builder.finish().unwrap();
+    }
+
+    let compressed = zstd::stream::encode_all(Cursor::new(tar_bytes), 0).unwrap();
+    at.write_bytes("external.tar.zst", &compressed);
+
+    new_ucmd!()
+        .args(&["--zstd", "-tf", "external.tar.zst"])
+        .current_dir(at.as_string())
+        .succeeds()
+        .stdout_contains("external.txt");
+}
+
+#[test]
+fn test_extract_zstd_archive() {
+    let (at, mut ucmd) = at_and_ucmd!();
+
+    at.write("original.txt", "test content");
+    ucmd.args(&["--zstd", "-cf", "archive.tar.zst", "original.txt"])
+        .succeeds();
+
+    at.remove("original.txt");
+
+    new_ucmd!()
+        .args(&["--zstd", "-xf", "archive.tar.zst"])
+        .current_dir(at.as_string())
+        .succeeds()
+        .no_output();
+
+    assert!(at.file_exists("original.txt"));
+    assert_eq!(at.read("original.txt"), "test content");
+}
+
+#[test]
+fn test_list_zstd_archive_without_flag_fails() {
+    let (at, mut ucmd) = at_and_ucmd!();
+
+    at.write("file1.txt", "content1");
+    ucmd.args(&["--zstd", "-cf", "archive.tar.zst", "file1.txt"])
+        .succeeds();
+
+    new_ucmd!()
+        .args(&["-tf", "archive.tar.zst"])
+        .current_dir(at.as_string())
+        .fails()
+        .code_is(2);
+}
+
+#[test]
+fn test_list_invalid_zstd_archive_fails() {
+    let (at, mut ucmd) = at_and_ucmd!();
+
+    at.write("invalid.tar.zst", "definitely not zstd");
+
+    ucmd.args(&["--zstd", "-tf", "invalid.tar.zst"])
+        .fails()
+        .code_is(2);
+}
+
+#[test]
+fn test_list_truncated_zstd_archive_fails() {
+    let at = &at_and_ucmd!().0;
+
+    let mut tar_bytes = Vec::new();
+    {
+        let mut builder = TarRsBuilder::new(&mut tar_bytes);
+        let mut header = TarRsHeader::new_gnu();
+        header.set_mode(0o644);
+        header.set_size("content".len() as u64);
+        header.set_cksum();
+        builder
+            .append_data(&mut header, "truncated.txt", Cursor::new("content"))
+            .unwrap();
+        builder.finish().unwrap();
+    }
+
+    let mut compressed = zstd::stream::encode_all(Cursor::new(tar_bytes), 0).unwrap();
+    compressed.truncate(compressed.len().saturating_sub(2));
+    at.write_bytes("truncated.tar.zst", &compressed);
+
+    new_ucmd!()
+        .args(&["--zstd", "-tf", "truncated.tar.zst"])
+        .current_dir(at.as_string())
+        .fails()
+        .code_is(2);
 }
 
 #[test]

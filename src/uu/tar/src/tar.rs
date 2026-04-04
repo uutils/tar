@@ -14,6 +14,12 @@ use uucore::format_usage;
 const ABOUT: &str = "an archiving utility";
 const USAGE: &str = "tar key [FILE...]\n       tar {-c|-t|-x} [-v] -f ARCHIVE [FILE...]";
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum CompressionMode {
+    None,
+    Zstd,
+}
+
 /// Determines whether a string looks like a POSIX tar keystring.
 ///
 /// A valid keystring must not start with '-', must contain at least one
@@ -131,6 +137,11 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     };
 
     let verbose = matches.get_flag("verbose");
+    let compression = if matches.get_flag("zstd") {
+        CompressionMode::Zstd
+    } else {
+        CompressionMode::None
+    };
 
     // Handle extract operation
     if matches.get_flag("extract") {
@@ -138,7 +149,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
             uucore::error::USimpleError::new(64, "option requires an argument -- 'f'")
         })?;
 
-        return operations::extract::extract_archive(archive_path, verbose);
+        return operations::extract::extract_archive(archive_path, verbose, compression);
     }
 
     // Handle create operation
@@ -159,7 +170,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
             ));
         }
 
-        return operations::create::create_archive(archive_path, &files, verbose);
+        return operations::create::create_archive(archive_path, &files, verbose, compression);
     }
 
     // Handle list operation
@@ -168,7 +179,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
             uucore::error::USimpleError::new(64, "option requires an argument -- 'f'")
         })?;
 
-        return operations::list::list_archive(archive_path, verbose);
+        return operations::list::list_archive(archive_path, verbose, compression);
     }
 
     // If no operation specified, show error
@@ -203,6 +214,7 @@ pub fn uu_app() -> Command {
             // arg!(-z --gzip "Filter through gzip"),
             // arg!(-j --bzip2 "Filter through bzip2"),
             // arg!(-J --xz "Filter through xz"),
+            arg!(--zstd "Filter through zstd"),
             // Common options
             arg!(-v --verbose "Verbosely list files processed"),
             // arg!(-h --dereference "Follow symlinks"),
@@ -220,6 +232,9 @@ pub fn uu_app() -> Command {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::ffi::OsString;
+    use std::fs;
+    use tempfile::tempdir;
 
     // --- is_posix_keystring ---
 
@@ -327,5 +342,47 @@ mod tests {
         let input = osvec(&["tar", "cbf", "20", "archive.tar", "file.txt"]);
         let expected = osvec(&["tar", "-c", "-b", "20", "-f", "archive.tar", "file.txt"]);
         assert_eq!(expand_posix_keystring(input), expected);
+    }
+
+    #[test]
+    fn test_uumain_dispatches_zstd_create_list_extract() {
+        let tempdir = tempdir().unwrap();
+        let _guard = crate::operations::TestDirGuard::enter(tempdir.path());
+        fs::write("file.txt", "hello").unwrap();
+
+        let create_args = vec![
+            OsString::from("test-bin"),
+            OsString::from("tar"),
+            OsString::from("--zstd"),
+            OsString::from("-cf"),
+            OsString::from("archive.tar.zst"),
+            OsString::from("file.txt"),
+        ];
+        assert_eq!(uumain(create_args.into_iter()), 0);
+
+        let list_args = vec![
+            OsString::from("test-bin"),
+            OsString::from("tar"),
+            OsString::from("--zstd"),
+            OsString::from("-tf"),
+            OsString::from("archive.tar.zst"),
+        ];
+        assert_eq!(uumain(list_args.into_iter()), 0);
+
+        fs::remove_file("file.txt").unwrap();
+        let extract_args = vec![
+            OsString::from("test-bin"),
+            OsString::from("tar"),
+            OsString::from("--zstd"),
+            OsString::from("-xf"),
+            OsString::from("archive.tar.zst"),
+        ];
+        let result = uumain(extract_args.into_iter());
+
+        assert_eq!(result, 0);
+        assert_eq!(
+            fs::read_to_string(tempdir.path().join("file.txt")).unwrap(),
+            "hello"
+        );
     }
 }

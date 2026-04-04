@@ -4,8 +4,10 @@
 // file that was distributed with this source code.
 
 use crate::errors::TarError;
+use crate::operations::compression::ArchiveWriter;
+use crate::CompressionMode;
 use std::collections::VecDeque;
-use std::fs::{self, File};
+use std::fs;
 use std::path::Component::{self, ParentDir, Prefix, RootDir};
 use std::path::{self, Path, PathBuf};
 use tar::Builder;
@@ -25,18 +27,14 @@ use uucore::error::UResult;
 /// - The archive file cannot be created
 /// - Any input file cannot be read
 /// - Files cannot be added due to I/O or permission errors
-pub fn create_archive(archive_path: &Path, files: &[&Path], verbose: bool) -> UResult<()> {
-    // Create the output file
-    let file = File::create(archive_path).map_err(|e| {
-        TarError::TarOperationError(format!(
-            "Cannot create archive '{}': {}",
-            archive_path.display(),
-            e
-        ))
-    })?;
-
-    // Create Builder instance
-    let mut builder = Builder::new(file);
+pub fn create_archive(
+    archive_path: &Path,
+    files: &[&Path],
+    verbose: bool,
+    compression: CompressionMode,
+) -> UResult<()> {
+    let writer = ArchiveWriter::create(archive_path, compression)?;
+    let mut builder = Builder::new(writer);
 
     // Add each file or directory to the archive
     for &path in files {
@@ -102,9 +100,10 @@ pub fn create_archive(archive_path: &Path, files: &[&Path], verbose: bool) -> UR
     }
 
     // Finish writing the archive
-    builder
-        .finish()
+    let writer = builder
+        .into_inner()
         .map_err(|e| TarError::TarOperationError(format!("Failed to finalize archive: {e}")))?;
+    writer.finish()?;
 
     Ok(())
 }
@@ -136,5 +135,52 @@ fn normalize_path(path: &Path) -> Option<PathBuf> {
         )
     } else {
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CompressionMode;
+    use std::fs;
+    use tar::Archive;
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_create_archive_with_zstd() {
+        let tempdir = tempdir().unwrap();
+        let _guard = crate::operations::TestDirGuard::enter(tempdir.path());
+        fs::write("file.txt", "hello").unwrap();
+
+        create_archive(
+            Path::new("archive.tar.zst"),
+            &[Path::new("file.txt")],
+            false,
+            CompressionMode::Zstd,
+        )
+        .unwrap();
+
+        let decoder =
+            zstd::stream::read::Decoder::new(fs::File::open("archive.tar.zst").unwrap()).unwrap();
+        let mut archive = Archive::new(decoder);
+        let mut entries = archive.entries().unwrap();
+        let entry = entries.next().unwrap().unwrap();
+        assert_eq!(entry.path().unwrap().to_str(), Some("file.txt"));
+    }
+
+    #[test]
+    fn test_create_archive_missing_file_fails() {
+        let tempdir = tempdir().unwrap();
+        let archive_path = tempdir.path().join("archive.tar.zst");
+        let missing_path = tempdir.path().join("missing.txt");
+
+        let err = create_archive(
+            &archive_path,
+            &[missing_path.as_path()],
+            false,
+            CompressionMode::Zstd,
+        )
+        .unwrap_err();
+        assert!(err.to_string().contains("missing.txt"));
     }
 }

@@ -82,6 +82,11 @@ jobs:
 #        crate: grcov
 #        version: latest
 #        use-tool-cache: false
+    - name: "`llvm-tools` ~ install"
+      shell: bash
+      run: |
+        ## Install the llvm-tools component to get access to `llvm-profdata`
+        rustup component add llvm-tools
     - name: Generate coverage data (via `grcov`)
       env:
         # Use -Z

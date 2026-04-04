@@ -4,7 +4,7 @@
 // at various scales to track performance over time.
 
 use std::fs::{self, File};
-use std::io::Write;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use tar::operations;
 use tempfile::TempDir;
@@ -39,7 +39,9 @@ fn collect_files(dir: &Path) -> Vec<PathBuf> {
 fn build_archive(archive_path: &Path, source_dir: &Path) {
     let files = collect_files(source_dir);
     let refs: Vec<&Path> = files.iter().map(|p| p.as_path()).collect();
-    operations::create::create_archive(archive_path, &refs, false, false).unwrap();
+    let output = File::create(archive_path).unwrap();
+    let status_output = io::sink();
+    operations::create::create_archive(output, status_output, &refs, false, false).unwrap();
 }
 
 // ---------------------------------------------------------------------------
@@ -57,7 +59,9 @@ fn create_archive_10_files(bencher: divan::Bencher) {
 
     bencher.bench_local(|| {
         let refs: Vec<&Path> = files.iter().map(|p| p.as_path()).collect();
-        operations::create::create_archive(&archive_path, &refs, false, false).unwrap();
+        let output = File::create(&archive_path).unwrap();
+        let status_output = io::sink();
+        operations::create::create_archive(output, status_output, &refs, false, false).unwrap();
     });
 }
 
@@ -72,7 +76,9 @@ fn create_archive_100_files(bencher: divan::Bencher) {
 
     bencher.bench_local(|| {
         let refs: Vec<&Path> = files.iter().map(|p| p.as_path()).collect();
-        operations::create::create_archive(&archive_path, &refs, false, false).unwrap();
+        let output = File::create(&archive_path).unwrap();
+        let status_output = io::sink();
+        operations::create::create_archive(output, status_output, &refs, false, false).unwrap();
     });
 }
 
@@ -87,7 +93,10 @@ fn create_archive_directory(bencher: divan::Bencher) {
     let archive_path = out.path().join("bench.tar");
 
     bencher.bench_local(|| {
-        operations::create::create_archive(&archive_path, &[sub.as_path()], false, false).unwrap();
+        let output = File::create(&archive_path).unwrap();
+        let status_output = io::sink();
+        operations::create::create_archive(output, status_output, &[sub.as_path()], false, false)
+            .unwrap();
     });
 }
 
@@ -104,7 +113,8 @@ fn list_archive_50_files(bencher: divan::Bencher) {
     build_archive(&archive_path, source.path());
 
     bencher.bench_local(|| {
-        operations::list::list_archive(&archive_path, false).unwrap();
+        let input = File::open(&archive_path).unwrap();
+        operations::list::list_archive(input, false).unwrap();
     });
 }
 
@@ -117,7 +127,8 @@ fn list_archive_verbose_50_files(bencher: divan::Bencher) {
     build_archive(&archive_path, source.path());
 
     bencher.bench_local(|| {
-        operations::list::list_archive(&archive_path, true).unwrap();
+        let input = File::open(&archive_path).unwrap();
+        operations::list::list_archive(input, true).unwrap();
     });
 }
 
@@ -138,7 +149,8 @@ fn extract_archive_20_files(bencher: divan::Bencher) {
         .with_inputs(|| TempDir::new().unwrap())
         .bench_local_values(|extract_dir| {
             std::env::set_current_dir(extract_dir.path()).unwrap();
-            operations::extract::extract_archive(&archive_path, false).unwrap();
+            let input = File::open(&archive_path).unwrap();
+            operations::extract::extract_archive(input, &archive_path, false).unwrap();
         });
     std::env::set_current_dir(original_dir).unwrap();
 }

@@ -4,8 +4,7 @@
 // file that was distributed with this source code.
 
 use crate::errors::TarError;
-use std::fs::File;
-use std::io::{self, BufWriter, Write};
+use std::io::{self, BufReader, BufWriter, Read, Write};
 use std::path::Path;
 use tar::Archive;
 use uucore::error::UResult;
@@ -23,12 +22,9 @@ use uucore::error::UResult;
 /// - The archive file cannot be opened
 /// - The archive format is invalid
 /// - Files cannot be extracted due to I/O or permission errors
-pub fn extract_archive(archive_path: &Path, verbose: bool) -> UResult<()> {
-    // Open the archive file
-    let file = File::open(archive_path).map_err(|e| TarError::from_io_error(e, archive_path))?;
-
+pub fn extract_archive(input: impl Read, archive_path: &Path, verbose: bool) -> UResult<()> {
     // Create Archive instance
-    let mut archive = Archive::new(file);
+    let mut archive = Archive::new(BufReader::new(input));
     let mut out = BufWriter::new(io::stdout().lock());
 
     // Extract to current directory

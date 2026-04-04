@@ -6,7 +6,10 @@
 pub mod errors;
 pub mod operations;
 
+use crate::errors::TarError;
 use clap::{arg, crate_version, ArgAction, Command};
+use std::fs::File;
+use std::io;
 use std::path::{Path, PathBuf};
 use uucore::error::UResult;
 use uucore::format_usage;
@@ -139,7 +142,13 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
             uucore::error::USimpleError::new(64, "option requires an argument -- 'f'")
         })?;
 
-        return operations::extract::extract_archive(archive_path, verbose);
+        return if archive_path == Path::new("-") {
+            operations::extract::extract_archive(io::stdin(), archive_path, verbose)
+        } else {
+            let file =
+                File::open(archive_path).map_err(|e| TarError::from_io_error(e, archive_path))?;
+            operations::extract::extract_archive(file, archive_path, verbose)
+        };
     }
 
     // Handle create operation
@@ -160,7 +169,31 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
             ));
         }
 
-        return operations::create::create_archive(archive_path, &files, allow_absolute, verbose);
+        let output_is_stdout = archive_path == Path::new("-");
+        return if output_is_stdout {
+            let output = io::stdout();
+            let status_output = io::stderr();
+            operations::create::create_archive(
+                output,
+                status_output,
+                &files,
+                allow_absolute,
+                verbose,
+            )
+        } else {
+            let output = File::create(archive_path).map_err(|e| TarError::CannotCreateArchive {
+                path: archive_path.clone(),
+                source: e,
+            })?;
+            let status_output = io::stdout();
+            operations::create::create_archive(
+                output,
+                status_output,
+                &files,
+                allow_absolute,
+                verbose,
+            )
+        };
     }
 
     // Handle list operation
@@ -169,7 +202,13 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
             uucore::error::USimpleError::new(64, "option requires an argument -- 'f'")
         })?;
 
-        return operations::list::list_archive(archive_path, verbose);
+        return if archive_path == Path::new("-") {
+            operations::list::list_archive(io::stdin(), verbose)
+        } else {
+            let file =
+                File::open(archive_path).map_err(|e| TarError::from_io_error(e, archive_path))?;
+            operations::list::list_archive(file, verbose)
+        };
     }
 
     // If no operation specified, show error

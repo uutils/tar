@@ -5,17 +5,14 @@
 
 use crate::errors::TarError;
 use chrono::{TimeZone, Utc};
-use std::fs::File;
-use std::path::Path;
+use std::io::Read;
 use tar::Archive;
 use uucore::error::UResult;
 use uucore::fs::display_permissions_unix;
 
 /// List the contents of a tar archive, printing one entry per line.
-pub fn list_archive(archive_path: &Path, verbose: bool) -> UResult<()> {
-    let file: File =
-        File::open(archive_path).map_err(|e| TarError::from_io_error(e, archive_path))?;
-    let mut archive = Archive::new(file);
+pub fn list_archive(input: Box<dyn Read>, verbose: bool) -> UResult<()> {
+    let mut archive = Archive::new(input);
 
     for entry_result in archive.entries().map_err(TarError::CannotReadEntries)? {
         let entry = entry_result.map_err(TarError::CannotReadEntry)?;

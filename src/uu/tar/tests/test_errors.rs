@@ -44,10 +44,7 @@ fn test_tar_error_code() {
         .code(),
         2
     );
-    assert_eq!(
-        TarError::Io(io::Error::new(io::ErrorKind::Other, "test")).code(),
-        2
-    );
+    assert_eq!(TarError::Io(io::Error::other("test")).code(), 2);
 }
 
 #[test]

@@ -27,6 +27,10 @@ pub enum TarError {
     #[error("tar: Cannot read entry path: {0}")]
     CannotReadEntryPath(io::Error),
 
+    /// Invalid archive format or unsupported compression stream
+    #[error("tar: {0}")]
+    InvalidArchive(String),
+
     /// File or directory not found
     #[error("tar: {path}: Cannot open: No such file or directory")]
     FileNotFound { path: PathBuf },
@@ -50,6 +54,10 @@ pub enum TarError {
     /// Cannot extract an archive entry
     #[error("tar: Cannot extract '{path}': {source}")]
     CannotExtract { path: PathBuf, source: io::Error },
+
+    /// General tar operation error
+    #[error("tar: {0}")]
+    TarOperationError(String),
 
     /// Cannot finalize the archive
     #[error("tar: Cannot finalize archive: {0}")]

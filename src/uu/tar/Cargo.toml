@@ -19,6 +19,7 @@ regex = { workspace = true }
 tar = { workspace = true }
 chrono = { workspace = true }
 thiserror = { workspace = true }
+flate2 = "1"
 
 [lib]
 path = "src/tar.rs"

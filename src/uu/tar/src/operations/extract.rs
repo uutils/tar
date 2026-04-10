@@ -3,8 +3,9 @@
 // For the full copyright and license information, please view the LICENSE
 // file that was distributed with this source code.
 
+use crate::compression::open_archive_reader;
 use crate::errors::TarError;
-use std::fs::File;
+use crate::CompressionMode;
 use std::path::Path;
 use tar::Archive;
 use uucore::error::UResult;
@@ -22,12 +23,13 @@ use uucore::error::UResult;
 /// - The archive file cannot be opened
 /// - The archive format is invalid
 /// - Files cannot be extracted due to I/O or permission errors
-pub fn extract_archive(archive_path: &Path, verbose: bool) -> UResult<()> {
-    // Open the archive file
-    let file = File::open(archive_path).map_err(|e| TarError::from_io_error(e, archive_path))?;
-
-    // Create Archive instance
-    let mut archive = Archive::new(file);
+pub fn extract_archive(
+    archive_path: &Path,
+    verbose: bool,
+    compression: CompressionMode,
+) -> UResult<()> {
+    let reader = open_archive_reader(archive_path, compression)?;
+    let mut archive = Archive::new(reader);
 
     // Extract to current directory
     if verbose {

@@ -51,7 +51,7 @@ jobs:
         strip -s target/release/tarapp
         zstd -19 target/release/tarapp -o ../tar-x86_64-unknown-linux-gnu.zst
     - name: Publish latest commit
-      uses: softprops/action-gh-release@v2
+      uses: softprops/action-gh-release@v3
       if: github.event_name == 'push' && github.ref == 'refs/heads/main'
       with:
         tag_name: latest-commit

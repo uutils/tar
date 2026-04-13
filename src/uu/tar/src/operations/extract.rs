@@ -4,7 +4,8 @@
 // file that was distributed with this source code.
 
 use crate::errors::TarError;
-use std::fs::File;
+use crate::operations::compression::open_archive_reader;
+use crate::CompressionMode;
 use std::path::Path;
 use tar::Archive;
 use uucore::error::UResult;
@@ -22,12 +23,13 @@ use uucore::error::UResult;
 /// - The archive file cannot be opened
 /// - The archive format is invalid
 /// - Files cannot be extracted due to I/O or permission errors
-pub fn extract_archive(archive_path: &Path, verbose: bool) -> UResult<()> {
-    // Open the archive file
-    let file = File::open(archive_path).map_err(|e| TarError::from_io_error(e, archive_path))?;
-
-    // Create Archive instance
-    let mut archive = Archive::new(file);
+pub fn extract_archive(
+    archive_path: &Path,
+    verbose: bool,
+    compression: CompressionMode,
+) -> UResult<()> {
+    let reader = open_archive_reader(archive_path, compression)?;
+    let mut archive = Archive::new(reader);
 
     // Extract to current directory
     if verbose {
@@ -56,4 +58,43 @@ pub fn extract_archive(archive_path: &Path, verbose: bool) -> UResult<()> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CompressionMode;
+    use std::fs;
+    use tar::Builder;
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_extract_archive_with_zstd() {
+        let tempdir = tempdir().unwrap();
+        let archive_path = tempdir.path().join("archive.tar.zst");
+
+        let mut tar_bytes = Vec::new();
+        {
+            let mut builder = Builder::new(&mut tar_bytes);
+            let mut header = tar::Header::new_gnu();
+            header.set_mode(0o644);
+            header.set_size("hello".len() as u64);
+            header.set_cksum();
+            builder
+                .append_data(&mut header, "extracted.txt", std::io::Cursor::new("hello"))
+                .unwrap();
+            builder.finish().unwrap();
+        }
+        let compressed = zstd::stream::encode_all(std::io::Cursor::new(tar_bytes), 0).unwrap();
+        fs::write(&archive_path, compressed).unwrap();
+
+        let _guard = crate::operations::TestDirGuard::enter(tempdir.path());
+        let result = extract_archive(&archive_path, true, CompressionMode::Zstd);
+
+        result.unwrap();
+        assert_eq!(
+            fs::read_to_string(tempdir.path().join("extracted.txt")).unwrap(),
+            "hello"
+        );
+    }
 }

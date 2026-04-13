@@ -67,6 +67,7 @@ tar = { optional = true, version = "0.0.1", package = "uu_tar", path = "src/uu/t
 
 [dev-dependencies]
 chrono = { workspace = true }
+flate2 = "1"
 libc = { workspace = true }
 pretty_assertions = "1"
 rand = { workspace = true }

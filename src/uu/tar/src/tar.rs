@@ -3,6 +3,7 @@
 // For the full copyright and license information, please view the LICENSE
 // file that was distributed with this source code.
 
+pub mod compression;
 pub mod errors;
 mod operations;
 
@@ -13,6 +14,13 @@ use uucore::format_usage;
 
 const ABOUT: &str = "an archiving utility";
 const USAGE: &str = "tar key [FILE...]\n       tar {-c|-t|-x} [-v] -f ARCHIVE [FILE...]";
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum CompressionMode {
+    Auto,
+    None,
+    Gzip,
+}
 
 /// Determines whether a string looks like a POSIX tar keystring.
 ///
@@ -131,6 +139,11 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     };
 
     let verbose = matches.get_flag("verbose");
+    let explicit_compression = if matches.get_flag("gzip") {
+        Some(CompressionMode::Gzip)
+    } else {
+        None
+    };
 
     // Handle extract operation
     if matches.get_flag("extract") {
@@ -138,7 +151,8 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
             uucore::error::USimpleError::new(64, "option requires an argument -- 'f'")
         })?;
 
-        return operations::extract::extract_archive(archive_path, verbose);
+        let compression = explicit_compression.unwrap_or(CompressionMode::Auto);
+        return operations::extract::extract_archive(archive_path, verbose, compression);
     }
 
     // Handle create operation
@@ -159,7 +173,8 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
             ));
         }
 
-        return operations::create::create_archive(archive_path, &files, verbose);
+        let compression = explicit_compression.unwrap_or(CompressionMode::None);
+        return operations::create::create_archive(archive_path, &files, verbose, compression);
     }
 
     // Handle list operation
@@ -168,7 +183,8 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
             uucore::error::USimpleError::new(64, "option requires an argument -- 'f'")
         })?;
 
-        return operations::list::list_archive(archive_path, verbose);
+        let compression = explicit_compression.unwrap_or(CompressionMode::Auto);
+        return operations::list::list_archive(archive_path, verbose, compression);
     }
 
     // If no operation specified, show error
@@ -200,7 +216,7 @@ pub fn uu_app() -> Command {
             arg!(-f --file <ARCHIVE> "Use archive file or device ARCHIVE")
                 .value_parser(clap::value_parser!(PathBuf)),
             // Compression options
-            // arg!(-z --gzip "Filter through gzip"),
+            arg!(-z --gzip "Filter through gzip"),
             // arg!(-j --bzip2 "Filter through bzip2"),
             // arg!(-J --xz "Filter through xz"),
             // Common options

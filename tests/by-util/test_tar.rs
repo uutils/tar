@@ -3,6 +3,7 @@
 // For the full copyright and license information, please view the LICENSE
 // file that was distributed with this source code.
 
+use std::io::Write;
 use std::path::{self, PathBuf};
 
 use uutests::{at_and_ucmd, new_ucmd};
@@ -751,4 +752,206 @@ fn test_list_conflicts_with_extract() {
         .fails()
         .code_is(2)
         .stderr_contains("cannot be used with");
+}
+
+// Gzip-compressed archive tests
+
+#[test]
+fn test_extract_gzip_archive() {
+    let (at, _ucmd) = at_and_ucmd!();
+
+    // Build a .tar.gz in memory: tar containing one file, then gzip-compress it
+    let mut tar_bytes = Vec::new();
+    {
+        let mut builder = tar_rs_crate::Builder::new(&mut tar_bytes);
+        let content = b"hello from gzip";
+        let mut header = tar_rs_crate::Header::new_gnu();
+        header.set_path("gzfile.txt").unwrap();
+        header.set_size(content.len() as u64);
+        header.set_mode(0o644);
+        header.set_cksum();
+        builder.append(&header, &content[..]).unwrap();
+        builder.finish().unwrap();
+    }
+
+    // Gzip-compress the tar bytes
+    let mut gz_bytes = Vec::new();
+    {
+        let mut encoder =
+            flate2::write::GzEncoder::new(&mut gz_bytes, flate2::Compression::default());
+        encoder.write_all(&tar_bytes).unwrap();
+        encoder.finish().unwrap();
+    }
+
+    at.write_bytes("archive.tar.gz", &gz_bytes);
+
+    // Extract using our tar implementation
+    new_ucmd!()
+        .arg("-xf")
+        .arg(at.plus("archive.tar.gz"))
+        .current_dir(at.as_string())
+        .succeeds();
+
+    assert!(at.file_exists("gzfile.txt"));
+    assert_eq!(at.read("gzfile.txt"), "hello from gzip");
+}
+
+#[test]
+fn test_extract_gzip_archive_with_explicit_flag() {
+    let (at, _ucmd) = at_and_ucmd!();
+
+    let mut tar_bytes = Vec::new();
+    {
+        let mut builder = tar_rs_crate::Builder::new(&mut tar_bytes);
+        let content = b"hello from explicit gzip";
+        let mut header = tar_rs_crate::Header::new_gnu();
+        header.set_path("explicit-gzfile.txt").unwrap();
+        header.set_size(content.len() as u64);
+        header.set_mode(0o644);
+        header.set_cksum();
+        builder.append(&header, &content[..]).unwrap();
+        builder.finish().unwrap();
+    }
+
+    let mut gz_bytes = Vec::new();
+    {
+        let mut encoder =
+            flate2::write::GzEncoder::new(&mut gz_bytes, flate2::Compression::default());
+        encoder.write_all(&tar_bytes).unwrap();
+        encoder.finish().unwrap();
+    }
+
+    at.write_bytes("archive.tar.gz", &gz_bytes);
+
+    new_ucmd!()
+        .args(&["-zxf", &at.plus_as_string("archive.tar.gz")])
+        .current_dir(at.as_string())
+        .succeeds();
+
+    assert!(at.file_exists("explicit-gzfile.txt"));
+    assert_eq!(at.read("explicit-gzfile.txt"), "hello from explicit gzip");
+}
+
+#[test]
+fn test_create_gzip_archive() {
+    let (at, mut ucmd) = at_and_ucmd!();
+
+    at.write("file1.txt", "test content");
+
+    ucmd.args(&["-zcf", "archive.tar.gz", "file1.txt"])
+        .succeeds()
+        .no_output();
+
+    let mut decoder =
+        flate2::read::GzDecoder::new(std::io::Cursor::new(at.read_bytes("archive.tar.gz")));
+    let mut decoded = Vec::new();
+    std::io::Read::read_to_end(&mut decoder, &mut decoded).unwrap();
+
+    let mut archive = tar_rs_crate::Archive::new(std::io::Cursor::new(decoded));
+    let mut entries = archive.entries().unwrap();
+    let mut entry = entries.next().unwrap().unwrap();
+    let mut contents = String::new();
+    std::io::Read::read_to_string(&mut entry, &mut contents).unwrap();
+
+    assert_eq!(entry.path().unwrap().to_str(), Some("file1.txt"));
+    assert_eq!(contents, "test content");
+    assert!(entries.next().is_none());
+}
+
+#[test]
+fn test_gzip_roundtrip() {
+    let (at, mut ucmd) = at_and_ucmd!();
+
+    at.write("roundtrip.txt", "roundtrip gzip content");
+
+    ucmd.args(&["-zcf", "archive.tar.gz", "roundtrip.txt"])
+        .succeeds()
+        .no_output();
+
+    at.remove("roundtrip.txt");
+
+    new_ucmd!()
+        .args(&["-xf", &at.plus_as_string("archive.tar.gz")])
+        .current_dir(at.as_string())
+        .succeeds()
+        .no_output();
+
+    assert!(at.file_exists("roundtrip.txt"));
+    assert_eq!(at.read("roundtrip.txt"), "roundtrip gzip content");
+}
+
+#[test]
+fn test_list_gzip_archive() {
+    let (at, _ucmd) = at_and_ucmd!();
+
+    // Build a .tar.gz in memory
+    let mut tar_bytes = Vec::new();
+    {
+        let mut builder = tar_rs_crate::Builder::new(&mut tar_bytes);
+        let content = b"list test content";
+        let mut header = tar_rs_crate::Header::new_gnu();
+        header.set_path("listed.txt").unwrap();
+        header.set_size(content.len() as u64);
+        header.set_mode(0o644);
+        header.set_cksum();
+        builder.append(&header, &content[..]).unwrap();
+        builder.finish().unwrap();
+    }
+
+    let mut gz_bytes = Vec::new();
+    {
+        let mut encoder =
+            flate2::write::GzEncoder::new(&mut gz_bytes, flate2::Compression::default());
+        encoder.write_all(&tar_bytes).unwrap();
+        encoder.finish().unwrap();
+    }
+
+    at.write_bytes("archive.tar.gz", &gz_bytes);
+
+    new_ucmd!()
+        .args(&["-tf", &at.plus_as_string("archive.tar.gz")])
+        .succeeds()
+        .stdout_contains("listed.txt");
+}
+
+#[test]
+fn test_list_gzip_archive_with_explicit_flag() {
+    let (at, _ucmd) = at_and_ucmd!();
+
+    let mut tar_bytes = Vec::new();
+    {
+        let mut builder = tar_rs_crate::Builder::new(&mut tar_bytes);
+        let content = b"explicit gzip";
+        let mut header = tar_rs_crate::Header::new_gnu();
+        header.set_path("explicit.txt").unwrap();
+        header.set_size(content.len() as u64);
+        header.set_mode(0o644);
+        header.set_cksum();
+        builder.append(&header, &content[..]).unwrap();
+        builder.finish().unwrap();
+    }
+
+    let mut gz_bytes = Vec::new();
+    {
+        let mut encoder =
+            flate2::write::GzEncoder::new(&mut gz_bytes, flate2::Compression::default());
+        encoder.write_all(&tar_bytes).unwrap();
+        encoder.finish().unwrap();
+    }
+
+    at.write_bytes("archive.tar.gz", &gz_bytes);
+
+    new_ucmd!()
+        .args(&["-ztf", &at.plus_as_string("archive.tar.gz")])
+        .succeeds()
+        .stdout_contains("explicit.txt");
+}
+
+#[test]
+fn test_extract_invalid_gzip_archive_fails() {
+    let (at, mut ucmd) = at_and_ucmd!();
+
+    at.write("invalid.tar.gz", "definitely not gzip");
+
+    ucmd.args(&["-xf", "invalid.tar.gz"]).fails().code_is(2);
 }

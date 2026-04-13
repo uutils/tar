@@ -294,8 +294,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c1c888a2a4f677017373fb6c01e13e318dd9e78758445ed5eb985e355d3f8281"
 dependencies = [
  "ctor-proc-macro",
- "dtor",
- "link-section",
+ "dtor 0.6.0",
+ "link-section 0.0.12",
+]
+
+[[package]]
+name = "ctor"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "95d0d11eb38e7642efca359c3cf6eb7b2e528182d09110165de70192b0352775"
+dependencies = [
+ "ctor-proc-macro",
+ "dtor 0.7.0",
+ "link-section 0.2.0",
 ]
 
 [[package]]
@@ -364,6 +375,15 @@ name = "dtor"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "30e4690622ab6700ced40fc370a3f07b7d111f0154bb6fb08f73b4c8834f75b6"
+dependencies = [
+ "dtor-proc-macro",
+]
+
+[[package]]
+name = "dtor"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "17f72721db8027a4e96dd6fb50d2a1d32259c9d3da1b63dee612ccd981e14293"
 dependencies = [
  "dtor-proc-macro",
 ]
@@ -732,6 +752,12 @@ name = "link-section"
 version = "0.0.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f52437d47b0358721ec869cc7374b2a21f7b2237af9b439c0391341a1fbfbf1b"
+
+[[package]]
+name = "link-section"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "468808413fa8bdf0edbe61c2bbc182dfc59885b94f496cf3fb42c9c96b1e0149"
 
 [[package]]
 name = "linux-raw-sys"
@@ -1219,7 +1245,7 @@ dependencies = [
  "clap",
  "clap_complete",
  "clap_mangen",
- "ctor",
+ "ctor 0.10.0",
  "libc",
  "phf",
  "phf_codegen",
@@ -1458,7 +1484,7 @@ name = "uutests"
 version = "0.8.0"
 source = "git+https://github.com/uutils/coreutils#b13588cc944be76a123c841f94889b10dfbf7932"
 dependencies = [
- "ctor",
+ "ctor 0.9.1",
  "libc",
  "nix",
  "pretty_assertions",

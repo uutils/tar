@@ -5,7 +5,8 @@
 
 use crate::errors::TarError;
 use std::collections::VecDeque;
-use std::fs::{self, File};
+use std::fs;
+use std::io::Write;
 use std::path::Component::{self, ParentDir, Prefix, RootDir};
 use std::path::{self, Path, PathBuf};
 use tar::Builder;
@@ -25,15 +26,14 @@ use uucore::error::UResult;
 /// - The archive file cannot be created
 /// - Any input file cannot be read
 /// - Files cannot be added due to I/O or permission errors
-pub fn create_archive(archive_path: &Path, files: &[&Path], verbose: bool) -> UResult<()> {
-    // Create the output file
-    let file = File::create(archive_path).map_err(|e| TarError::CannotCreateArchive {
-        path: archive_path.to_path_buf(),
-        source: e,
-    })?;
-
+pub fn create_archive(
+    output: Box<dyn Write>,
+    mut status_output: Box<dyn Write>,
+    files: &[&Path],
+    verbose: bool,
+) -> UResult<()> {
     // Create Builder instance
-    let mut builder = Builder::new(file);
+    let mut builder = Builder::new(output);
 
     // Add each file or directory to the archive
     for &path in files {
@@ -58,7 +58,7 @@ pub fn create_archive(archive_path: &Path, files: &[&Path], verbose: bool) -> UR
                 })
                 .collect::<Vec<_>>()
                 .join("\n");
-            println!("{to_print}");
+            writeln!(status_output, "{to_print}")?;
         }
 
         // Normalize path if needed (so far, handles only absolute paths)
@@ -70,7 +70,11 @@ pub fn create_archive(archive_path: &Path, files: &[&Path], verbose: bool) -> UR
                     [..original_components.len() - normalized_components.len()]
                     .iter()
                     .collect();
-                println!("Removing leading `{}' from member names", removed.display());
+                writeln!(
+                    status_output,
+                    "Removing leading `{}' from member names",
+                    removed.display()
+                )?;
             }
 
             normalized

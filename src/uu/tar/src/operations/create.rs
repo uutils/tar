@@ -6,6 +6,7 @@
 use crate::errors::TarError;
 use std::collections::VecDeque;
 use std::fs::{self, File};
+use std::io::{self, BufWriter, Write};
 use std::path::Component::{self, ParentDir, Prefix, RootDir};
 use std::path::{self, Path, PathBuf};
 use tar::Builder;
@@ -34,6 +35,7 @@ pub fn create_archive(archive_path: &Path, files: &[&Path], verbose: bool) -> UR
 
     // Create Builder instance
     let mut builder = Builder::new(file);
+    let mut out = BufWriter::new(io::stdout().lock());
 
     // Add each file or directory to the archive
     for &path in files {
@@ -58,7 +60,7 @@ pub fn create_archive(archive_path: &Path, files: &[&Path], verbose: bool) -> UR
                 })
                 .collect::<Vec<_>>()
                 .join("\n");
-            println!("{to_print}");
+            writeln!(out, "{to_print}").map_err(TarError::Io)?;
         }
 
         // Normalize path if needed (so far, handles only absolute paths)
@@ -70,7 +72,12 @@ pub fn create_archive(archive_path: &Path, files: &[&Path], verbose: bool) -> UR
                     [..original_components.len() - normalized_components.len()]
                     .iter()
                     .collect();
-                println!("Removing leading `{}' from member names", removed.display());
+                writeln!(
+                    out,
+                    "Removing leading `{}' from member names",
+                    removed.display()
+                )
+                .map_err(TarError::Io)?;
             }
 
             normalized
@@ -98,6 +105,7 @@ pub fn create_archive(archive_path: &Path, files: &[&Path], verbose: bool) -> UR
     }
 
     // Finish writing the archive
+    out.flush().map_err(TarError::Io)?;
     builder.finish().map_err(TarError::CannotFinalizeArchive)?;
 
     Ok(())

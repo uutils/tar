@@ -6,6 +6,7 @@
 use crate::errors::TarError;
 use chrono::{TimeZone, Utc};
 use std::fs::File;
+use std::io::{self, BufWriter, Write};
 use std::path::Path;
 use tar::Archive;
 use uucore::error::UResult;
@@ -16,6 +17,7 @@ pub fn list_archive(archive_path: &Path, verbose: bool) -> UResult<()> {
     let file: File =
         File::open(archive_path).map_err(|e| TarError::from_io_error(e, archive_path))?;
     let mut archive = Archive::new(file);
+    let mut out = BufWriter::new(io::stdout().lock());
 
     for entry_result in archive.entries().map_err(TarError::CannotReadEntries)? {
         let entry = entry_result.map_err(TarError::CannotReadEntry)?;
@@ -68,16 +70,19 @@ pub fn list_archive(archive_path: &Path, verbose: bool) -> UResult<()> {
                 .unwrap_or_else(Utc::now);
             let date_str = dt.format("%Y-%m-%d %H:%M");
 
-            println!(
+            writeln!(
+                out,
                 "{permissions} {owner}/{group} {size:>8} {date_str} {}",
                 path.display()
-            );
+            )
+            .map_err(TarError::Io)?;
         } else {
             let path = entry.path().map_err(TarError::CannotReadEntryPath)?;
 
-            println!("{}", path.display());
+            writeln!(out, "{}", path.display()).map_err(TarError::Io)?;
         }
     }
 
+    out.flush().map_err(TarError::Io)?;
     Ok(())
 }

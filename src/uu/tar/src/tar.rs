@@ -3,6 +3,7 @@
 // For the full copyright and license information, please view the LICENSE
 // file that was distributed with this source code.
 
+mod display;
 pub mod errors;
 mod operations;
 
@@ -130,7 +131,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         }
     };
 
-    let verbose = matches.get_flag("verbose");
+    let verbose = matches.get_count("verbose");
 
     // Handle extract operation
     if matches.get_flag("extract") {
@@ -204,7 +205,7 @@ pub fn uu_app() -> Command {
             // arg!(-j --bzip2 "Filter through bzip2"),
             // arg!(-J --xz "Filter through xz"),
             // Common options
-            arg!(-v --verbose "Verbosely list files processed"),
+            arg!(-v --verbose "Verbosely list files processed").action(ArgAction::Count),
             // arg!(-h --dereference "Follow symlinks"),
             // arg!(-p --"preserve-permissions" "Extract information about file permissions"),
             // arg!(-P --"absolute-names" "Don't strip leading '/' from file names"),
@@ -282,6 +283,13 @@ mod tests {
     fn test_expand_cvf() {
         let input = osvec(&["tar", "cvf", "archive.tar", "file.txt"]);
         let expected = osvec(&["tar", "-c", "-v", "-f", "archive.tar", "file.txt"]);
+        assert_eq!(expand_posix_keystring(input), expected);
+    }
+
+    #[test]
+    fn test_expand_cvvf() {
+        let input = osvec(&["tar", "cvvf", "archive.tar", "file.txt"]);
+        let expected = osvec(&["tar", "-c", "-v", "-v", "-f", "archive.tar", "file.txt"]);
         assert_eq!(expand_posix_keystring(input), expected);
     }
 

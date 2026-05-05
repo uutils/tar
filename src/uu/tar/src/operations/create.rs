@@ -3,6 +3,7 @@
 // For the full copyright and license information, please view the LICENSE
 // file that was distributed with this source code.
 
+use crate::display;
 use crate::errors::TarError;
 use std::collections::VecDeque;
 use std::fs::{self, File};
@@ -18,7 +19,7 @@ use uucore::error::UResult;
 ///
 /// * `archive_path` - Path where the tar archive should be created
 /// * `files` - Slice of file paths to add to the archive
-/// * `verbose` - Whether to print verbose output during creation
+/// * `verbose` - Verbosity level during creation
 ///
 /// # Errors
 ///
@@ -26,7 +27,7 @@ use uucore::error::UResult;
 /// - The archive file cannot be created
 /// - Any input file cannot be read
 /// - Files cannot be added due to I/O or permission errors
-pub fn create_archive(archive_path: &Path, files: &[&Path], verbose: bool) -> UResult<()> {
+pub fn create_archive(archive_path: &Path, files: &[&Path], verbose: u8) -> UResult<()> {
     // Create the output file
     let file = File::create(archive_path).map_err(|e| TarError::CannotCreateArchive {
         path: archive_path.to_path_buf(),
@@ -48,7 +49,17 @@ pub fn create_archive(archive_path: &Path, files: &[&Path], verbose: bool) -> UR
             .into());
         }
 
-        if verbose {
+        if verbose >= 2 {
+            for p in get_tree(path)? {
+                let metadata = p.symlink_metadata().map_err(|e| TarError::CannotAddFile {
+                    path: p.clone(),
+                    source: e,
+                })?;
+                let mut header = tar::Header::new_gnu();
+                header.set_metadata(&metadata);
+                display::print_entry_verbose(&mut out, &header, &p).map_err(TarError::Io)?;
+            }
+        } else if verbose == 1 {
             let to_print = get_tree(path)?
                 .iter()
                 .map(|p| (p.is_dir(), p.display().to_string()))

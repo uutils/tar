@@ -29,6 +29,16 @@ fn test_verbose_flag_parsing() {
     let result = app.try_get_matches_from(vec!["tar", "-cvf", "archive.tar", "file.txt"]);
     assert!(result.is_ok());
     let matches = result.unwrap();
-    assert!(matches.get_flag("verbose"));
+    assert_eq!(matches.get_count("verbose"), 1);
+    assert!(matches.get_flag("create"));
+}
+
+#[test]
+fn test_double_verbose_flag_parsing() {
+    let app = uu_app();
+    let result = app.try_get_matches_from(vec!["tar", "-cvvf", "archive.tar", "file.txt"]);
+    assert!(result.is_ok());
+    let matches = result.unwrap();
+    assert_eq!(matches.get_count("verbose"), 2);
     assert!(matches.get_flag("create"));
 }

@@ -5,6 +5,7 @@
 
 use std::path::{self, PathBuf};
 
+use regex::Regex;
 use uutests::{at_and_ucmd, new_ucmd};
 
 /// Size of a single tar block in bytes (per POSIX specification).
@@ -146,6 +147,24 @@ fn test_create_verbose() {
 }
 
 #[test]
+fn test_create_double_verbose() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.write("file.txt", "content");
+    at.mkdir("dir");
+    at.relative_symlink_file("file.txt", "mylink");
+
+    let file_regex = Regex::new(r"-.{9} .* 7 \d{4}-\d{2}-\d{2} \d{2}:\d{2} file.txt\r?\n").unwrap();
+    let dir_regex = Regex::new(r"d.{9} .* 0 \d{4}-\d{2}-\d{2} \d{2}:\d{2} dir[/\\]+\r?\n").unwrap();
+    let symlink_regex =
+        Regex::new(r"l.{9} .* 0 \d{4}-\d{2}-\d{2} \d{2}:\d{2} mylink\r?\n").unwrap();
+    ucmd.args(&["-cvvf", "archive.tar", "file.txt", "dir", "mylink"])
+        .succeeds()
+        .stdout_matches(&file_regex)
+        .stdout_matches(&dir_regex)
+        .stdout_matches(&symlink_regex);
+}
+
+#[test]
 fn test_create_empty_archive_fails() {
     new_ucmd!()
         .args(&["-cf", "archive.tar"])
@@ -237,6 +256,31 @@ fn test_extract_verbose() {
     assert!(at.file_exists("file1.txt"));
     assert!(at.file_exists("file2.txt"));
     assert!(at.file_exists("file3.txt"));
+}
+
+#[test]
+fn test_extract_double_verbose() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.write("file.txt", "content");
+    at.mkdir("dir");
+    at.relative_symlink_file("file.txt", "mylink");
+    ucmd.args(&["-cf", "archive.tar", "file.txt", "dir", "mylink"])
+        .succeeds();
+    at.remove("file.txt");
+    at.rmdir("dir");
+    at.remove("mylink");
+
+    let file_regex = Regex::new(r"-.{9} .* 7 \d{4}-\d{2}-\d{2} \d{2}:\d{2} file.txt\r?\n").unwrap();
+    let dir_regex = Regex::new(r"d.{9} .* 0 \d{4}-\d{2}-\d{2} \d{2}:\d{2} dir[/\\]+\r?\n").unwrap();
+    let symlink_regex =
+        Regex::new(r"l.{9} .* 0 \d{4}-\d{2}-\d{2} \d{2}:\d{2} mylink\r?\n").unwrap();
+    new_ucmd!()
+        .args(&["-xvvf", "archive.tar"])
+        .current_dir(at.as_string())
+        .succeeds()
+        .stdout_matches(&file_regex)
+        .stdout_matches(&dir_regex)
+        .stdout_matches(&symlink_regex);
 }
 
 #[test]

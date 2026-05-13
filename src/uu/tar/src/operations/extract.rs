@@ -5,6 +5,7 @@
 
 use crate::errors::TarError;
 use std::fs::File;
+use std::io::{self, BufWriter, Write};
 use std::path::Path;
 use tar::Archive;
 use uucore::error::UResult;
@@ -28,10 +29,11 @@ pub fn extract_archive(archive_path: &Path, verbose: bool) -> UResult<()> {
 
     // Create Archive instance
     let mut archive = Archive::new(file);
+    let mut out = BufWriter::new(io::stdout().lock());
 
     // Extract to current directory
     if verbose {
-        println!("Extracting archive: {}", archive_path.display());
+        writeln!(out, "Extracting archive: {}", archive_path.display()).map_err(TarError::Io)?;
     }
 
     // Iterate through entries for verbose output and error handling
@@ -45,7 +47,7 @@ pub fn extract_archive(archive_path: &Path, verbose: bool) -> UResult<()> {
             .to_path_buf();
 
         if verbose {
-            println!("{}", path.display());
+            writeln!(out, "{}", path.display()).map_err(TarError::Io)?;
         }
 
         // Unpack the entry
@@ -55,5 +57,6 @@ pub fn extract_archive(archive_path: &Path, verbose: bool) -> UResult<()> {
         })?;
     }
 
+    out.flush().map_err(TarError::Io)?;
     Ok(())
 }

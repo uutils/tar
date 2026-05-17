@@ -347,10 +347,7 @@ fn test_roundtrip_empty_files() {
 #[test]
 #[cfg(unix)]
 fn test_create_permission_denied() {
-    // SAFETY: `libc::geteuid()` is a pure function that returns the effective
-    // user ID of the calling process. It has no side effects and cannot cause
-    // undefined behavior.
-    if unsafe { libc::geteuid() } == 0 {
+    if rustix::process::geteuid().is_root() {
         eprintln!("skipping: running as root");
         return;
     }

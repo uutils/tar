@@ -171,11 +171,48 @@ fn test_create_absolute_path() {
     file_abs_path.push("file1.txt");
 
     at.write(&file_abs_path.display().to_string(), "content1");
-    ucmd.args(&["-cf", "archive.tar", &file_abs_path.display().to_string()])
-        .succeeds()
-        .stdout_contains("Removing leading");
 
-    assert!(at.file_exists("archive.tar"));
+    // Trim leading '/'
+    ucmd.args(&[
+        "-cf",
+        "archive-trimed.tar",
+        &file_abs_path.display().to_string(),
+    ])
+    .succeeds()
+    .stdout_contains("Removing leading");
+
+    assert!(at.file_exists("archive-trimed.tar"));
+
+    let expected_trimmed_path = file_abs_path
+        .components()
+        .filter(|c| !matches!(c, path::Component::RootDir | path::Component::Prefix(_)))
+        .map(|c| c.as_os_str().display().to_string())
+        .collect::<Vec<_>>()
+        .join(std::path::MAIN_SEPARATOR_STR);
+
+    new_ucmd!()
+        .args(&["-tf", "archive-trimed.tar"])
+        .current_dir(at.as_string())
+        .succeeds()
+        .stdout_contains(expected_trimmed_path);
+
+    let (at, mut ucmd) = at_and_ucmd!();
+    // Preserve leading '/'
+    ucmd.args(&[
+        "-cPf",
+        "archive-preserved.tar",
+        &file_abs_path.display().to_string(),
+    ])
+    .succeeds()
+    .no_output();
+
+    assert!(at.file_exists("archive-preserved.tar"));
+
+    new_ucmd!()
+        .args(&["-tf", "archive-preserved.tar"])
+        .current_dir(at.as_string())
+        .succeeds()
+        .stdout_contains(file_abs_path.display().to_string());
 }
 
 // Extract operation tests
@@ -554,11 +591,15 @@ fn test_extract_created_from_absolute_path() {
     file_abs_path.push("file1.txt");
 
     at.write(&file_abs_path.display().to_string(), "content1");
-    ucmd.args(&["-cf", "archive.tar", &file_abs_path.display().to_string()])
-        .succeeds();
+    ucmd.args(&[
+        "-cf",
+        "archive-trimed.tar",
+        &file_abs_path.display().to_string(),
+    ])
+    .succeeds();
 
     new_ucmd!()
-        .args(&["-xf", "archive.tar"])
+        .args(&["-xf", "archive-trimed.tar"])
         .current_dir(at.as_string())
         .succeeds();
 
@@ -568,6 +609,23 @@ fn test_extract_created_from_absolute_path() {
         .map(|c| c.as_os_str().display().to_string())
         .collect::<Vec<_>>()
         .join(std::path::MAIN_SEPARATOR_STR);
+
+    assert!(at.file_exists(&expected_path));
+
+    new_ucmd!()
+        .args(&[
+            "-cPf",
+            "archive-preserved.tar",
+            &file_abs_path.display().to_string(),
+        ])
+        .current_dir(at.as_string())
+        .succeeds();
+
+    at.remove(&expected_path);
+    new_ucmd!()
+        .args(&["-xf", "archive-preserved.tar"])
+        .current_dir(at.as_string())
+        .succeeds();
 
     assert!(at.file_exists(expected_path));
 }

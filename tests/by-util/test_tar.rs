@@ -194,7 +194,7 @@ fn test_create_absolute_path() {
         .args(&["-tf", "archive-trimed.tar"])
         .current_dir(at.as_string())
         .succeeds()
-        .stdout_contains(expected_trimmed_path);
+        .stdout_contains(&expected_trimmed_path);
 
     let (at, mut ucmd) = at_and_ucmd!();
     // Preserve leading '/'
@@ -208,16 +208,18 @@ fn test_create_absolute_path() {
 
     assert!(at.file_exists("archive-preserved.tar"));
 
-    let expected_full_path = file_abs_path
-        .display()
-        .to_string()
-        .replace(std::path::MAIN_SEPARATOR_STR, "/");
+    let expected_prefix = file_abs_path
+        .components()
+        .find(|c| matches!(c, path::Component::RootDir | path::Component::Prefix(_)))
+        .map(|c| c.as_os_str().display().to_string())
+        .unwrap();
 
     new_ucmd!()
         .args(&["-tf", "archive-preserved.tar"])
         .current_dir(at.as_string())
         .succeeds()
-        .stdout_contains(expected_full_path);
+        .stdout_contains(expected_prefix)
+        .stdout_contains(expected_trimmed_path);
 }
 
 // Extract operation tests

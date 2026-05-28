@@ -188,7 +188,7 @@ fn test_create_absolute_path() {
         .filter(|c| !matches!(c, path::Component::RootDir | path::Component::Prefix(_)))
         .map(|c| c.as_os_str().display().to_string())
         .collect::<Vec<_>>()
-        .join(std::path::MAIN_SEPARATOR_STR);
+        .join("/");
 
     new_ucmd!()
         .args(&["-tf", "archive-trimed.tar"])
@@ -208,11 +208,16 @@ fn test_create_absolute_path() {
 
     assert!(at.file_exists("archive-preserved.tar"));
 
+    let expected_full_path = file_abs_path
+        .display()
+        .to_string()
+        .replace(std::path::MAIN_SEPARATOR_STR, "/");
+
     new_ucmd!()
         .args(&["-tf", "archive-preserved.tar"])
         .current_dir(at.as_string())
         .succeeds()
-        .stdout_contains(file_abs_path.display().to_string());
+        .stdout_contains(expected_full_path);
 }
 
 // Extract operation tests

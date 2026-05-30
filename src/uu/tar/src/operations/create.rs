@@ -35,6 +35,7 @@ pub fn create_archive(archive_path: &Path, files: &[&Path], verbose: bool) -> UR
 
     // Create Builder instance
     let mut builder = Builder::new(file);
+    builder.follow_symlinks(false);
     let mut out = BufWriter::new(io::stdout().lock());
 
     // Add each file or directory to the archive

@@ -138,10 +138,7 @@ fn get_tree(path: &Path) -> Result<Vec<PathBuf>, std::io::Error> {
 }
 
 fn normalize_path(path: &Path, allow_absolute: bool) -> Option<PathBuf> {
-    if allow_absolute {
-        return Some(path.to_path_buf());
-    }
-    if path.is_absolute() {
+    if path.is_absolute() && !allow_absolute {
         Some(
             path.components()
                 .filter(|c| !matches!(c, RootDir | ParentDir | Prefix(_)))

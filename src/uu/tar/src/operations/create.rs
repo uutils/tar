@@ -18,6 +18,7 @@ use uucore::error::UResult;
 ///
 /// * `archive_path` - Path where the tar archive should be created
 /// * `files` - Slice of file paths to add to the archive
+/// * `allow_absolute` - Allow absolute paths while creating archive
 /// * `verbose` - Whether to print verbose output during creation
 ///
 /// # Errors
@@ -26,7 +27,12 @@ use uucore::error::UResult;
 /// - The archive file cannot be created
 /// - Any input file cannot be read
 /// - Files cannot be added due to I/O or permission errors
-pub fn create_archive(archive_path: &Path, files: &[&Path], verbose: bool) -> UResult<()> {
+pub fn create_archive(
+    archive_path: &Path,
+    files: &[&Path],
+    allow_absolute: bool,
+    verbose: bool,
+) -> UResult<()> {
     // Create the output file
     let file = File::create(archive_path).map_err(|e| TarError::CannotCreateArchive {
         path: archive_path.to_path_buf(),
@@ -35,6 +41,8 @@ pub fn create_archive(archive_path: &Path, files: &[&Path], verbose: bool) -> UR
 
     // Create Builder instance
     let mut builder = Builder::new(file);
+    builder.preserve_absolute(allow_absolute);
+
     let mut out = BufWriter::new(io::stdout().lock());
 
     // Add each file or directory to the archive
@@ -64,7 +72,7 @@ pub fn create_archive(archive_path: &Path, files: &[&Path], verbose: bool) -> UR
         }
 
         // Normalize path if needed (so far, handles only absolute paths)
-        let normalized_name = if let Some(normalized) = normalize_path(path) {
+        let normalized_name = if let Some(normalized) = normalize_path(path, allow_absolute) {
             let original_components: Vec<Component> = path.components().collect();
             let normalized_components: Vec<Component> = normalized.components().collect();
             if original_components.len() > normalized_components.len() {
@@ -129,8 +137,8 @@ fn get_tree(path: &Path) -> Result<Vec<PathBuf>, std::io::Error> {
     Ok(paths)
 }
 
-fn normalize_path(path: &Path) -> Option<PathBuf> {
-    if path.is_absolute() {
+fn normalize_path(path: &Path, allow_absolute: bool) -> Option<PathBuf> {
+    if path.is_absolute() && !allow_absolute {
         Some(
             path.components()
                 .filter(|c| !matches!(c, RootDir | ParentDir | Prefix(_)))

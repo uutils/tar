@@ -131,6 +131,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     };
 
     let verbose = matches.get_flag("verbose");
+    let allow_absolute = matches.get_flag("absolute-names");
 
     // Handle extract operation
     if matches.get_flag("extract") {
@@ -159,7 +160,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
             ));
         }
 
-        return operations::create::create_archive(archive_path, &files, verbose);
+        return operations::create::create_archive(archive_path, &files, allow_absolute, verbose);
     }
 
     // Handle list operation
@@ -199,6 +200,10 @@ pub fn uu_app() -> Command {
             // Archive file
             arg!(-f --file <ARCHIVE> "Use archive file or device ARCHIVE")
                 .value_parser(clap::value_parser!(PathBuf)),
+            arg!(
+                -P --"absolute-names"
+                "Don't strip leading '/'s from file names"
+            ),
             // Compression options
             // arg!(-z --gzip "Filter through gzip"),
             // arg!(-j --bzip2 "Filter through bzip2"),
@@ -207,7 +212,6 @@ pub fn uu_app() -> Command {
             arg!(-v --verbose "Verbosely list files processed"),
             // arg!(-h --dereference "Follow symlinks"),
             // arg!(-p --"preserve-permissions" "Extract information about file permissions"),
-            // arg!(-P --"absolute-names" "Don't strip leading '/' from file names"),
             // Help
             arg!(--help "Print help information").action(ArgAction::Help),
             // Files to process

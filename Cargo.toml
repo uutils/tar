@@ -68,6 +68,7 @@ tar = { optional = true, version = "0.0.1", package = "uu_tar", path = "src/uu/t
 
 [dev-dependencies]
 chrono = { workspace = true }
+divan = { version = "4.7.0", package = "codspeed-divan-compat" }
 pretty_assertions = "1"
 rand = { workspace = true }
 regex = { workspace = true }
@@ -86,6 +87,10 @@ rlimit = "0.11.0"
 [build-dependencies]
 phf_codegen = { workspace = true }
 
+
+[[bench]]
+name = "bench_tar"
+harness = false
 
 [[bin]]
 name = "tarapp"

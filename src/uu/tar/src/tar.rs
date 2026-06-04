@@ -4,7 +4,7 @@
 // file that was distributed with this source code.
 
 pub mod errors;
-mod operations;
+pub mod operations;
 
 use clap::{arg, crate_version, ArgAction, Command};
 use std::path::{Path, PathBuf};

@@ -6,7 +6,7 @@
 pub mod errors;
 pub mod operations;
 
-use clap::{ArgAction, Command, arg, crate_version};
+use clap::{arg, crate_version, ArgAction, Command};
 use std::path::{Path, PathBuf};
 use uucore::error::UResult;
 use uucore::format_usage;

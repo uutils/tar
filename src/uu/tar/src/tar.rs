@@ -4,9 +4,9 @@
 // file that was distributed with this source code.
 
 pub mod errors;
-mod operations;
+pub mod operations;
 
-use clap::{arg, crate_version, ArgAction, Command};
+use clap::{ArgAction, Command, arg, crate_version};
 use std::path::{Path, PathBuf};
 use uucore::error::UResult;
 use uucore::format_usage;

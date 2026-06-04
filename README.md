@@ -4,6 +4,7 @@
 [![dependency status](https://deps.rs/repo/github/uutils/tar/status.svg)](https://deps.rs/repo/github/uutils/tar)
 
 [![CodeCov](https://codecov.io/gh/uutils/tar/branch/master/graph/badge.svg)](https://codecov.io/gh/uutils/tar)
+[![CodSpeed](https://img.shields.io/endpoint?url=https://codspeed.io/badge.json)](https://app.codspeed.io/uutils/tar?utm_source=badge)
 
 # tar
 

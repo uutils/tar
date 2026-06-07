@@ -411,30 +411,13 @@ dependencies = [
 
 [[package]]
 name = "ctor"
-version = "0.9.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c1c888a2a4f677017373fb6c01e13e318dd9e78758445ed5eb985e355d3f8281"
-dependencies = [
- "ctor-proc-macro",
- "dtor",
- "link-section 0.0.12",
-]
-
-[[package]]
-name = "ctor"
 version = "1.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "01334b89b69ff726750c5ce5073fc8bd860e99aa9a8fc5ca11b04730e3aee97a"
 dependencies = [
- "link-section 0.18.0",
+ "link-section",
  "linktime-proc-macro",
 ]
-
-[[package]]
-name = "ctor-proc-macro"
-version = "0.0.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a7ab264ea985f1bd27887d7b21ea2bb046728e05d11909ca138d700c494730db"
 
 [[package]]
 name = "ctutils"
@@ -524,21 +507,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "dtor"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "30e4690622ab6700ced40fc370a3f07b7d111f0154bb6fb08f73b4c8834f75b6"
-dependencies = [
- "dtor-proc-macro",
-]
-
-[[package]]
-name = "dtor-proc-macro"
-version = "0.0.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8c98b077c7463d01d22dde8a24378ddf1ca7263dc687cffbed38819ea6c21131"
-
-[[package]]
 name = "dunce"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -563,7 +531,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -847,7 +815,7 @@ dependencies = [
  "portable-atomic",
  "portable-atomic-util",
  "serde_core",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -916,9 +884,9 @@ checksum = "2c4a545a15244c7d945065b5d392b2d2d7f21526fba56ce51467b06ed445e8f7"
 
 [[package]]
 name = "libc"
-version = "0.2.182"
+version = "0.2.186"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6800badb6cb2082ffd7b6a67e6125bb39f18782f793520caee8cb8846be06112"
+checksum = "68ab91017fe16c622486840e4c83c9a37afeff978bd239b5293d61ece587de66"
 
 [[package]]
 name = "libredox"
@@ -931,12 +899,6 @@ dependencies = [
  "plain",
  "redox_syscall",
 ]
-
-[[package]]
-name = "link-section"
-version = "0.0.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f52437d47b0358721ec869cc7374b2a21f7b2237af9b439c0391341a1fbfbf1b"
 
 [[package]]
 name = "link-section"
@@ -989,9 +951,9 @@ dependencies = [
 
 [[package]]
 name = "nix"
-version = "0.31.2"
+version = "0.31.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5d6d0705320c1e6ba1d912b5e37cf18071b6c2e9b7fa8215a1e8a7651966f5d3"
+checksum = "cf20d2fde8ff38632c426f1165ed7436270b44f199fc55284c38276f9db47c3d"
 dependencies = [
  "bitflags",
  "cfg-if",
@@ -1283,7 +1245,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -1456,7 +1418,7 @@ dependencies = [
  "clap_complete",
  "clap_mangen",
  "codspeed-divan-compat",
- "ctor 1.0.7",
+ "ctor",
  "phf",
  "phf_codegen",
  "pretty_assertions",
@@ -1481,10 +1443,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.4.2",
+ "getrandom 0.3.4",
  "once_cell",
  "rustix",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -1494,7 +1456,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "230a1b821ccbd75b185820a1f1ff7b14d21da1e442e22c0863ea5f08771a8874"
 dependencies = [
  "rustix",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -1687,14 +1649,13 @@ dependencies = [
 
 [[package]]
 name = "uucore"
-version = "0.8.0"
-source = "git+https://github.com/uutils/coreutils#b13588cc944be76a123c841f94889b10dfbf7932"
+version = "0.9.0"
+source = "git+https://github.com/uutils/coreutils#48d030dfb2ca7659ee2735f09cda706c8245a3fc"
 dependencies = [
  "clap",
  "dns-lookup",
  "dunce",
  "fluent",
- "fluent-bundle",
  "fluent-syntax",
  "jiff",
  "libc",
@@ -1713,8 +1674,8 @@ dependencies = [
 
 [[package]]
 name = "uucore_procs"
-version = "0.8.0"
-source = "git+https://github.com/uutils/coreutils#b13588cc944be76a123c841f94889b10dfbf7932"
+version = "0.9.0"
+source = "git+https://github.com/uutils/coreutils#48d030dfb2ca7659ee2735f09cda706c8245a3fc"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1722,10 +1683,10 @@ dependencies = [
 
 [[package]]
 name = "uutests"
-version = "0.8.0"
-source = "git+https://github.com/uutils/coreutils#b13588cc944be76a123c841f94889b10dfbf7932"
+version = "0.9.0"
+source = "git+https://github.com/uutils/coreutils#48d030dfb2ca7659ee2735f09cda706c8245a3fc"
 dependencies = [
- "ctor 0.9.1",
+ "ctor",
  "libc",
  "nix",
  "pretty_assertions",
@@ -1861,7 +1822,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]

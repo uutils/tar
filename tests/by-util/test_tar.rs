@@ -190,7 +190,7 @@ fn test_create_absolute_path() {
         &file_abs_path.display().to_string(),
     ])
     .succeeds()
-    .stdout_contains("Removing leading");
+    .stderr_contains("tar: Removing leading");
 
     assert!(at.file_exists("archive-trimed.tar"));
 
@@ -868,6 +868,10 @@ fn test_create_verbose_to_stdout_keeps_stdout_as_tar_data() {
         "tar header should contain filename"
     );
     assert_eq!(&bytes[..8], b"file.txt");
+    assert_eq!(
+        bytes[8], 0,
+        "stdout should not contain verbose output prefix"
+    );
 }
 
 #[test]

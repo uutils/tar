@@ -9,7 +9,7 @@ pub mod operations;
 use crate::errors::TarError;
 use clap::{arg, crate_version, ArgAction, Command};
 use std::fs::File;
-use std::io;
+use std::io::{self, IsTerminal};
 use std::path::{Path, PathBuf};
 use uucore::error::UResult;
 use uucore::format_usage;
@@ -171,21 +171,25 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
 
         let output_is_stdout = archive_path == Path::new("-");
         return if output_is_stdout {
-            let output = io::stdout();
-            let status_output = io::stderr();
-            operations::create::create_archive(
-                output,
-                status_output,
-                &files,
-                allow_absolute,
-                verbose,
-            )
+            if io::stdout().is_terminal() {
+                Err(TarError::RefuseWriteArchiveToTerminal.into())
+            } else {
+                let output = io::stdout().lock();
+                let status_output = io::stderr();
+                operations::create::create_archive(
+                    output,
+                    status_output,
+                    &files,
+                    allow_absolute,
+                    verbose,
+                )
+            }
         } else {
             let output = File::create(archive_path).map_err(|e| TarError::CannotCreateArchive {
                 path: archive_path.clone(),
                 source: e,
             })?;
-            let status_output = io::stdout();
+            let status_output = io::stdout().lock();
             operations::create::create_archive(
                 output,
                 status_output,

@@ -1681,6 +1681,7 @@ dependencies = [
  "clap",
  "regex",
  "tar",
+ "tempfile",
  "thiserror",
  "uucore",
 ]

@@ -54,6 +54,10 @@ pub enum TarError {
     /// Cannot finalize the archive
     #[error("tar: Cannot finalize archive: {0}")]
     CannotFinalizeArchive(io::Error),
+
+    /// Refusing to write archive contents to terminal
+    #[error("tar: Refusing to write archive contents to terminal (missing -f option?)")]
+    RefuseWriteArchiveToTerminal,
 }
 
 impl TarError {

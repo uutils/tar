@@ -77,8 +77,8 @@ pub fn create_archive(
                     .iter()
                     .collect();
                 writeln!(
-                    status_output,
-                    "Removing leading `{}' from member names",
+                    std::io::stderr(),
+                    "tar: Removing leading `{}' from member names",
                     removed.display()
                 )
                 .map_err(TarError::Io)?;
@@ -144,5 +144,34 @@ fn normalize_path(path: &Path, allow_absolute: bool) -> Option<PathBuf> {
         )
     } else {
         None
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::{self, Write};
+    use tempfile::TempDir;
+
+    struct FailFlushWriter;
+    impl Write for FailFlushWriter {
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+            Ok(buf.len())
+        }
+        fn flush(&mut self) -> io::Result<()> {
+            Err(io::Error::other("flush failed"))
+        }
+    }
+
+    #[test]
+    fn test_create_archive_flush_failed() {
+        let dir = TempDir::new().unwrap();
+        let file_path = dir.path().join("test.txt");
+        fs::write(&file_path, "hello").unwrap();
+
+        let output = FailFlushWriter;
+        let status_output = io::sink();
+
+        let res = create_archive(output, status_output, &[file_path.as_path()], false, false);
+        assert!(res.is_err());
     }
 }

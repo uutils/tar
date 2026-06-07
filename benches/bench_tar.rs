@@ -41,7 +41,7 @@ fn build_archive(archive_path: &Path, source_dir: &Path) {
     let refs: Vec<&Path> = files.iter().map(|p| p.as_path()).collect();
     let output = File::create(archive_path).unwrap();
     let status_output = io::sink();
-    operations::create::create_archive(output, status_output, &refs, false, false).unwrap();
+    operations::create::create_archive(output, status_output, &refs, true, false).unwrap();
 }
 
 // ---------------------------------------------------------------------------
@@ -61,7 +61,7 @@ fn create_archive_10_files(bencher: divan::Bencher) {
         let refs: Vec<&Path> = files.iter().map(|p| p.as_path()).collect();
         let output = File::create(&archive_path).unwrap();
         let status_output = io::sink();
-        operations::create::create_archive(output, status_output, &refs, false, false).unwrap();
+        operations::create::create_archive(output, status_output, &refs, true, false).unwrap();
     });
 }
 
@@ -78,7 +78,7 @@ fn create_archive_100_files(bencher: divan::Bencher) {
         let refs: Vec<&Path> = files.iter().map(|p| p.as_path()).collect();
         let output = File::create(&archive_path).unwrap();
         let status_output = io::sink();
-        operations::create::create_archive(output, status_output, &refs, false, false).unwrap();
+        operations::create::create_archive(output, status_output, &refs, true, false).unwrap();
     });
 }
 
@@ -95,7 +95,7 @@ fn create_archive_directory(bencher: divan::Bencher) {
     bencher.bench_local(|| {
         let output = File::create(&archive_path).unwrap();
         let status_output = io::sink();
-        operations::create::create_archive(output, status_output, &[sub.as_path()], false, false)
+        operations::create::create_archive(output, status_output, &[sub.as_path()], true, false)
             .unwrap();
     });
 }

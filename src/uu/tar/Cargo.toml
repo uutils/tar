@@ -26,3 +26,6 @@ path = "src/tar.rs"
 [[bin]]
 name = "tar"
 path = "src/main.rs"
+
+[dev-dependencies]
+tempfile = { workspace = true }

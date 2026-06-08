@@ -5,8 +5,8 @@
 
 use crate::errors::TarError;
 use std::collections::VecDeque;
-use std::fs::{self, File};
-use std::io::{self, BufWriter, Write};
+use std::fs;
+use std::io::{BufWriter, Write};
 use std::path::Component::{self, ParentDir, Prefix, RootDir};
 use std::path::{self, Path, PathBuf};
 use tar::Builder;
@@ -28,22 +28,18 @@ use uucore::error::UResult;
 /// - Any input file cannot be read
 /// - Files cannot be added due to I/O or permission errors
 pub fn create_archive(
-    archive_path: &Path,
+    output: impl Write,
+    status_output: impl Write,
     files: &[&Path],
     allow_absolute: bool,
     verbose: bool,
 ) -> UResult<()> {
-    // Create the output file
-    let file = File::create(archive_path).map_err(|e| TarError::CannotCreateArchive {
-        path: archive_path.to_path_buf(),
-        source: e,
-    })?;
+    let mut output = BufWriter::new(output);
+    let mut status_output = BufWriter::new(status_output);
 
     // Create Builder instance
-    let mut builder = Builder::new(file);
+    let mut builder = Builder::new(&mut output);
     builder.preserve_absolute(allow_absolute);
-
-    let mut out = BufWriter::new(io::stdout().lock());
 
     // Add each file or directory to the archive
     for &path in files {
@@ -68,7 +64,7 @@ pub fn create_archive(
                 })
                 .collect::<Vec<_>>()
                 .join("\n");
-            writeln!(out, "{to_print}").map_err(TarError::Io)?;
+            writeln!(status_output, "{to_print}").map_err(TarError::Io)?;
         }
 
         // Normalize path if needed (so far, handles only absolute paths)
@@ -81,8 +77,8 @@ pub fn create_archive(
                     .iter()
                     .collect();
                 writeln!(
-                    out,
-                    "Removing leading `{}' from member names",
+                    std::io::stderr(),
+                    "tar: Removing leading `{}' from member names",
                     removed.display()
                 )
                 .map_err(TarError::Io)?;
@@ -112,9 +108,11 @@ pub fn create_archive(
         }
     }
 
-    // Finish writing the archive
-    out.flush().map_err(TarError::Io)?;
     builder.finish().map_err(TarError::CannotFinalizeArchive)?;
+    drop(builder);
+
+    status_output.flush().map_err(TarError::Io)?;
+    output.flush().map_err(TarError::Io)?;
 
     Ok(())
 }
@@ -146,5 +144,34 @@ fn normalize_path(path: &Path, allow_absolute: bool) -> Option<PathBuf> {
         )
     } else {
         None
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::{self, Write};
+    use tempfile::TempDir;
+
+    struct FailFlushWriter;
+    impl Write for FailFlushWriter {
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+            Ok(buf.len())
+        }
+        fn flush(&mut self) -> io::Result<()> {
+            Err(io::Error::other("flush failed"))
+        }
+    }
+
+    #[test]
+    fn test_create_archive_flush_failed() {
+        let dir = TempDir::new().unwrap();
+        let file_path = dir.path().join("test.txt");
+        fs::write(&file_path, "hello").unwrap();
+
+        let output = FailFlushWriter;
+        let status_output = io::sink();
+
+        let res = create_archive(output, status_output, &[file_path.as_path()], false, false);
+        assert!(res.is_err());
     }
 }

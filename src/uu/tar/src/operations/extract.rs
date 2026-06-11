@@ -3,8 +3,11 @@
 // For the full copyright and license information, please view the LICENSE
 // file that was distributed with this source code.
 
+use crate::compression::open_archive_reader;
 use crate::errors::TarError;
-use std::io::{self, BufReader, BufWriter, Read, Write};
+use crate::CompressionMode;
+use std::io::Read;
+use std::io::{self, BufWriter, Write};
 use std::path::Path;
 use tar::Archive;
 use uucore::error::UResult;
@@ -22,9 +25,23 @@ use uucore::error::UResult;
 /// - The archive file cannot be opened
 /// - The archive format is invalid
 /// - Files cannot be extracted due to I/O or permission errors
-pub fn extract_archive(input: impl Read, archive_path: &Path, verbose: bool) -> UResult<()> {
+pub fn extract_archive(
+    input: impl Read + 'static,
+    archive_path: &Path,
+    verbose: bool,
+) -> UResult<()> {
+    extract_archive_with_compression(input, archive_path, verbose, CompressionMode::Auto)
+}
+
+pub(crate) fn extract_archive_with_compression(
+    input: impl Read + 'static,
+    archive_path: &Path,
+    verbose: bool,
+    compression: CompressionMode,
+) -> UResult<()> {
     // Create Archive instance
-    let mut archive = Archive::new(BufReader::new(input));
+    let reader = open_archive_reader(input, compression)?;
+    let mut archive = Archive::new(reader);
     let mut out = BufWriter::new(io::stdout().lock());
 
     // Extract to current directory

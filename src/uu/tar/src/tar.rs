@@ -3,6 +3,7 @@
 // For the full copyright and license information, please view the LICENSE
 // file that was distributed with this source code.
 
+pub mod compression;
 pub mod errors;
 pub mod operations;
 
@@ -16,6 +17,13 @@ use uucore::format_usage;
 
 const ABOUT: &str = "an archiving utility";
 const USAGE: &str = "tar key [FILE...]\n       tar {-c|-t|-x} [-v] -f ARCHIVE [FILE...]";
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum CompressionMode {
+    Auto,
+    None,
+    Gzip,
+}
 
 /// Determines whether a string looks like a POSIX tar keystring.
 ///
@@ -135,6 +143,11 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
 
     let verbose = matches.get_flag("verbose");
     let allow_absolute = matches.get_flag("absolute-names");
+    let explicit_compression = if matches.get_flag("gzip") {
+        Some(CompressionMode::Gzip)
+    } else {
+        None
+    };
 
     // Handle extract operation
     if matches.get_flag("extract") {
@@ -142,12 +155,23 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
             uucore::error::USimpleError::new(64, "option requires an argument -- 'f'")
         })?;
 
+        let compression = explicit_compression.unwrap_or(CompressionMode::Auto);
         return if archive_path == Path::new("-") {
-            operations::extract::extract_archive(io::stdin(), archive_path, verbose)
+            operations::extract::extract_archive_with_compression(
+                io::stdin(),
+                archive_path,
+                verbose,
+                compression,
+            )
         } else {
             let file =
                 File::open(archive_path).map_err(|e| TarError::from_io_error(e, archive_path))?;
-            operations::extract::extract_archive(file, archive_path, verbose)
+            operations::extract::extract_archive_with_compression(
+                file,
+                archive_path,
+                verbose,
+                compression,
+            )
         };
     }
 
@@ -169,6 +193,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
             ));
         }
 
+        let compression = explicit_compression.unwrap_or(CompressionMode::None);
         let output_is_stdout = archive_path == Path::new("-");
         return if output_is_stdout {
             if io::stdout().is_terminal() {
@@ -176,12 +201,13 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
             } else {
                 let output = io::stdout().lock();
                 let status_output = io::stderr();
-                operations::create::create_archive(
+                operations::create::create_archive_with_compression(
                     output,
                     status_output,
                     &files,
                     allow_absolute,
                     verbose,
+                    compression,
                 )
             }
         } else {
@@ -190,12 +216,13 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
                 source: e,
             })?;
             let status_output = io::stdout().lock();
-            operations::create::create_archive(
+            operations::create::create_archive_with_compression(
                 output,
                 status_output,
                 &files,
                 allow_absolute,
                 verbose,
+                compression,
             )
         };
     }
@@ -206,12 +233,13 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
             uucore::error::USimpleError::new(64, "option requires an argument -- 'f'")
         })?;
 
+        let compression = explicit_compression.unwrap_or(CompressionMode::Auto);
         return if archive_path == Path::new("-") {
-            operations::list::list_archive(io::stdin(), verbose)
+            operations::list::list_archive_with_compression(io::stdin(), verbose, compression)
         } else {
             let file =
                 File::open(archive_path).map_err(|e| TarError::from_io_error(e, archive_path))?;
-            operations::list::list_archive(file, verbose)
+            operations::list::list_archive_with_compression(file, verbose, compression)
         };
     }
 
@@ -248,7 +276,7 @@ pub fn uu_app() -> Command {
                 "Don't strip leading '/'s from file names"
             ),
             // Compression options
-            // arg!(-z --gzip "Filter through gzip"),
+            arg!(-z --gzip "Filter through gzip"),
             // arg!(-j --bzip2 "Filter through bzip2"),
             // arg!(-J --xz "Filter through xz"),
             // Common options

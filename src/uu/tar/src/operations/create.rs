@@ -3,7 +3,9 @@
 // For the full copyright and license information, please view the LICENSE
 // file that was distributed with this source code.
 
+use crate::compression::ArchiveWriter;
 use crate::errors::TarError;
+use crate::CompressionMode;
 use std::collections::VecDeque;
 use std::fs;
 use std::io::{BufWriter, Write};
@@ -34,11 +36,30 @@ pub fn create_archive(
     allow_absolute: bool,
     verbose: bool,
 ) -> UResult<()> {
-    let mut output = BufWriter::new(output);
+    create_archive_with_compression(
+        output,
+        status_output,
+        files,
+        allow_absolute,
+        verbose,
+        CompressionMode::None,
+    )
+}
+
+pub(crate) fn create_archive_with_compression(
+    output: impl Write,
+    status_output: impl Write,
+    files: &[&Path],
+    allow_absolute: bool,
+    verbose: bool,
+    compression: CompressionMode,
+) -> UResult<()> {
+    let output = BufWriter::new(output);
     let mut status_output = BufWriter::new(status_output);
 
     // Create Builder instance
-    let mut builder = Builder::new(&mut output);
+    let writer = ArchiveWriter::new(output, compression)?;
+    let mut builder = Builder::new(writer);
     builder.preserve_absolute(allow_absolute);
 
     // Add each file or directory to the archive
@@ -109,10 +130,11 @@ pub fn create_archive(
     }
 
     builder.finish().map_err(TarError::CannotFinalizeArchive)?;
-    drop(builder);
-
+    let writer = builder
+        .into_inner()
+        .map_err(|e| TarError::TarOperationError(format!("Failed to finalize archive: {e}")))?;
+    writer.finish()?;
     status_output.flush().map_err(TarError::Io)?;
-    output.flush().map_err(TarError::Io)?;
 
     Ok(())
 }
@@ -163,7 +185,7 @@ mod tests {
     }
 
     #[test]
-    fn test_create_archive_flush_failed() {
+    fn test_create_archive_plain_flush_failed() {
         let dir = TempDir::new().unwrap();
         let file_path = dir.path().join("test.txt");
         fs::write(&file_path, "hello").unwrap();
@@ -171,7 +193,34 @@ mod tests {
         let output = FailFlushWriter;
         let status_output = io::sink();
 
-        let res = create_archive(output, status_output, &[file_path.as_path()], false, false);
+        let res = create_archive_with_compression(
+            output,
+            status_output,
+            &[file_path.as_path()],
+            false,
+            false,
+            CompressionMode::None,
+        );
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn test_create_archive_gzip_flush_failed() {
+        let dir = TempDir::new().unwrap();
+        let file_path = dir.path().join("test.txt");
+        fs::write(&file_path, "hello").unwrap();
+
+        let output = FailFlushWriter;
+        let status_output = io::sink();
+
+        let res = create_archive_with_compression(
+            output,
+            status_output,
+            &[file_path.as_path()],
+            false,
+            false,
+            CompressionMode::Gzip,
+        );
         assert!(res.is_err());
     }
 }

@@ -56,42 +56,10 @@ pub fn create_archive(
         }
 
         if verbose {
-            let to_print = get_tree(path)?
-                .iter()
-                .map(|p| (p.is_dir(), p.display().to_string()))
-                .map(|(is_dir, path)| {
-                    if is_dir {
-                        format!("{}{}", path, path::MAIN_SEPARATOR)
-                    } else {
-                        path
-                    }
-                })
-                .collect::<Vec<_>>()
-                .join("\n");
-            writeln!(status_output, "{to_print}").map_err(TarError::Io)?;
+            print_verbose_tree(&mut status_output, path)?;
         }
 
-        // Normalize path if needed (so far, handles only absolute paths)
-        let normalized_name = if let Some(normalized) = normalize_path(path, allow_absolute) {
-            let original_components: Vec<Component> = path.components().collect();
-            let normalized_components: Vec<Component> = normalized.components().collect();
-            if original_components.len() > normalized_components.len() {
-                let removed: PathBuf = original_components
-                    [..original_components.len() - normalized_components.len()]
-                    .iter()
-                    .collect();
-                writeln!(
-                    std::io::stderr(),
-                    "tar: Removing leading `{}' from member names",
-                    removed.display()
-                )
-                .map_err(TarError::Io)?;
-            }
-
-            normalized
-        } else {
-            path.to_path_buf()
-        };
+        let normalized_name = get_normalized_path(path, allow_absolute)?;
 
         // If it's a directory, recursively add all contents
         if path.is_dir() {
@@ -123,6 +91,44 @@ pub fn create_archive(
     output.finish()?;
 
     Ok(())
+}
+
+fn print_verbose_tree(status_output: &mut impl Write, path: &Path) -> UResult<()> {
+    let to_print = get_tree(path)?
+        .iter()
+        .map(|p| (p.is_dir(), p.display().to_string()))
+        .map(|(is_dir, path)| {
+            if is_dir {
+                format!("{}{}", path, path::MAIN_SEPARATOR)
+            } else {
+                path
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    writeln!(status_output, "{to_print}").map_err(TarError::Io)?;
+    Ok(())
+}
+
+fn get_normalized_path(path: &Path, allow_absolute: bool) -> Result<PathBuf, TarError> {
+    if let Some(normalized) = normalize_path(path, allow_absolute) {
+        let original_components: Vec<Component> = path.components().collect();
+        let normalized_components: Vec<Component> = normalized.components().collect();
+        if original_components.len() > normalized_components.len() {
+            let removed: PathBuf = original_components
+                [..original_components.len() - normalized_components.len()]
+                .iter()
+                .collect();
+            writeln!(
+                std::io::stderr(),
+                "tar: Removing leading `{}' from member names",
+                removed.display()
+            )?;
+        }
+        Ok(normalized)
+    } else {
+        Ok(path.to_path_buf())
+    }
 }
 
 fn get_tree(path: &Path) -> Result<Vec<PathBuf>, std::io::Error> {

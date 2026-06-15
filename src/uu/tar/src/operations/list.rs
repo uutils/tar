@@ -14,7 +14,7 @@ use uucore::error::UResult;
 use uucore::fs::display_permissions_unix;
 
 /// List the contents of a tar archive, printing one entry per line.
-pub(crate) fn list_archive(
+pub fn list_archive(
     input: impl Read,
     archive_path: &Path,
     verbose: bool,

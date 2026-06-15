@@ -24,7 +24,7 @@ use uucore::error::UResult;
 /// - The archive file cannot be opened
 /// - The archive format is invalid
 /// - Files cannot be extracted due to I/O or permission errors
-pub(crate) fn extract_archive(
+pub fn extract_archive(
     input: impl Read,
     archive_path: &Path,
     verbose: bool,

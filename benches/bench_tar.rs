@@ -6,6 +6,7 @@
 use std::fs::{self, File};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
+use tar::CompressionMode;
 use tar::operations;
 use tempfile::TempDir;
 
@@ -41,7 +42,15 @@ fn build_archive(archive_path: &Path, source_dir: &Path) {
     let refs: Vec<&Path> = files.iter().map(|p| p.as_path()).collect();
     let output = File::create(archive_path).unwrap();
     let status_output = io::sink();
-    operations::create::create_archive(output, status_output, &refs, true, false).unwrap();
+    operations::create::create_archive(
+        output,
+        status_output,
+        &refs,
+        true,
+        false,
+        CompressionMode::None,
+    )
+    .unwrap();
 }
 
 // ---------------------------------------------------------------------------
@@ -61,7 +70,15 @@ fn create_archive_10_files(bencher: divan::Bencher) {
         let refs: Vec<&Path> = files.iter().map(|p| p.as_path()).collect();
         let output = File::create(&archive_path).unwrap();
         let status_output = io::sink();
-        operations::create::create_archive(output, status_output, &refs, true, false).unwrap();
+        operations::create::create_archive(
+            output,
+            status_output,
+            &refs,
+            true,
+            false,
+            CompressionMode::None,
+        )
+        .unwrap();
     });
 }
 
@@ -78,7 +95,15 @@ fn create_archive_100_files(bencher: divan::Bencher) {
         let refs: Vec<&Path> = files.iter().map(|p| p.as_path()).collect();
         let output = File::create(&archive_path).unwrap();
         let status_output = io::sink();
-        operations::create::create_archive(output, status_output, &refs, true, false).unwrap();
+        operations::create::create_archive(
+            output,
+            status_output,
+            &refs,
+            true,
+            false,
+            CompressionMode::None,
+        )
+        .unwrap();
     });
 }
 
@@ -95,8 +120,15 @@ fn create_archive_directory(bencher: divan::Bencher) {
     bencher.bench_local(|| {
         let output = File::create(&archive_path).unwrap();
         let status_output = io::sink();
-        operations::create::create_archive(output, status_output, &[sub.as_path()], true, false)
-            .unwrap();
+        operations::create::create_archive(
+            output,
+            status_output,
+            &[sub.as_path()],
+            true,
+            false,
+            CompressionMode::None,
+        )
+        .unwrap();
     });
 }
 
@@ -114,7 +146,7 @@ fn list_archive_50_files(bencher: divan::Bencher) {
 
     bencher.bench_local(|| {
         let input = File::open(&archive_path).unwrap();
-        operations::list::list_archive(input, false).unwrap();
+        operations::list::list_archive(input, &archive_path, false, CompressionMode::None).unwrap();
     });
 }
 
@@ -128,7 +160,7 @@ fn list_archive_verbose_50_files(bencher: divan::Bencher) {
 
     bencher.bench_local(|| {
         let input = File::open(&archive_path).unwrap();
-        operations::list::list_archive(input, true).unwrap();
+        operations::list::list_archive(input, &archive_path, true, CompressionMode::None).unwrap();
     });
 }
 
@@ -150,7 +182,13 @@ fn extract_archive_20_files(bencher: divan::Bencher) {
         .bench_local_values(|extract_dir| {
             std::env::set_current_dir(extract_dir.path()).unwrap();
             let input = File::open(&archive_path).unwrap();
-            operations::extract::extract_archive(input, &archive_path, false).unwrap();
+            operations::extract::extract_archive(
+                input,
+                &archive_path,
+                false,
+                CompressionMode::None,
+            )
+            .unwrap();
         });
     std::env::set_current_dir(original_dir).unwrap();
 }

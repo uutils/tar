@@ -29,7 +29,7 @@ use uucore::error::UResult;
 /// - The archive file cannot be created
 /// - Any input file cannot be read
 /// - Files cannot be added due to I/O or permission errors
-pub(crate) fn create_archive(
+pub fn create_archive(
     output: impl Write,
     status_output: impl Write,
     files: &[&Path],

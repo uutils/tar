@@ -18,7 +18,7 @@ const ABOUT: &str = "an archiving utility";
 const USAGE: &str = "tar key [FILE...]\n       tar {-c|-t|-x} [-v] -f ARCHIVE [FILE...]";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum CompressionMode {
+pub enum CompressionMode {
     None,
     Zstd,
 }

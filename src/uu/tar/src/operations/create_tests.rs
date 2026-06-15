@@ -39,6 +39,26 @@ fn test_create_archive_flush_failed() {
 }
 
 #[test]
+fn test_create_archive_gzip_flush_failed() {
+    let dir = TempDir::new().unwrap();
+    let file_path = dir.path().join("test.txt");
+    fs::write(&file_path, "hello").unwrap();
+
+    let output = FailFlushWriter;
+    let status_output = io::sink();
+
+    let res = create_archive(
+        output,
+        status_output,
+        &[file_path.as_path()],
+        false,
+        false,
+        CompressionMode::Gzip,
+    );
+    assert!(res.is_err());
+}
+
+#[test]
 fn test_create_archive_with_zstd() {
     let tempdir = tempdir().unwrap();
     let _guard = crate::operations::TestDirGuard::enter(tempdir.path());

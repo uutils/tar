@@ -70,6 +70,7 @@ tar = { optional = true, version = "0.0.1", package = "uu_tar", path = "src/uu/t
 [dev-dependencies]
 chrono = { workspace = true }
 divan = { version = "4.7.0", package = "codspeed-divan-compat" }
+flate2 = "1"
 pretty_assertions = "1"
 rand = { workspace = true }
 regex = { workspace = true }

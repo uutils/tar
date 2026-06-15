@@ -3,8 +3,8 @@
 // For the full copyright and license information, please view the LICENSE
 // file that was distributed with this source code.
 
+use crate::compression::ArchiveWriter;
 use crate::errors::TarError;
-use crate::operations::compression::ArchiveWriter;
 use crate::CompressionMode;
 use std::collections::VecDeque;
 use std::fs;
@@ -37,12 +37,12 @@ pub fn create_archive(
     verbose: bool,
     compression: CompressionMode,
 ) -> UResult<()> {
-    let output = ArchiveWriter::new(output, compression)?;
-    let mut output = BufWriter::new(output);
+    let output = BufWriter::new(output);
     let mut status_output = BufWriter::new(status_output);
 
     // Create Builder instance
-    let mut builder = Builder::new(&mut output);
+    let writer = ArchiveWriter::new(output, compression)?;
+    let mut builder = Builder::new(writer);
     builder.preserve_absolute(allow_absolute);
 
     // Add each file or directory to the archive
@@ -81,14 +81,11 @@ pub fn create_archive(
     }
 
     builder.finish().map_err(TarError::CannotFinalizeArchive)?;
-    drop(builder);
-
-    status_output.flush().map_err(TarError::Io)?;
-    output.flush().map_err(TarError::Io)?;
-    let output = output
+    let writer = builder
         .into_inner()
-        .map_err(|e| TarError::Io(e.into_error()))?;
-    output.finish()?;
+        .map_err(|e| TarError::TarOperationError(format!("Failed to finalize archive: {e}")))?;
+    writer.finish()?;
+    status_output.flush().map_err(TarError::Io)?;
 
     Ok(())
 }

@@ -8,7 +8,6 @@ use std::path::{Path, PathBuf};
 #[cfg(test)]
 use std::sync::{Mutex, MutexGuard, OnceLock};
 
-pub mod compression;
 pub mod create;
 pub mod extract;
 pub mod list;

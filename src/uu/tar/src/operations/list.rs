@@ -3,11 +3,12 @@
 // For the full copyright and license information, please view the LICENSE
 // file that was distributed with this source code.
 
+use crate::compression::open_archive_reader;
 use crate::errors::TarError;
-use crate::operations::compression::open_archive_reader;
 use crate::CompressionMode;
 use chrono::{TimeZone, Utc};
-use std::io::{self, BufWriter, Read, Write};
+use std::io::Read;
+use std::io::{self, BufWriter, Write};
 use std::path::Path;
 use tar::Archive;
 use uucore::error::UResult;
@@ -16,11 +17,11 @@ use uucore::fs::display_permissions_unix;
 /// List the contents of a tar archive, printing one entry per line.
 pub fn list_archive(
     input: impl Read,
-    archive_path: &Path,
+    _archive_path: &Path,
     verbose: bool,
     compression: CompressionMode,
 ) -> UResult<()> {
-    let reader = open_archive_reader(input, archive_path, compression)?;
+    let reader = open_archive_reader(input, compression)?;
     let mut archive = Archive::new(reader);
     let mut out = BufWriter::new(io::stdout().lock());
 

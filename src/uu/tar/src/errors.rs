@@ -27,7 +27,7 @@ pub enum TarError {
     #[error("tar: Cannot read entry path: {0}")]
     CannotReadEntryPath(io::Error),
 
-    /// Invalid archive format or corrupted archive
+    /// Invalid archive format or unsupported compression stream
     #[error("tar: {0}")]
     InvalidArchive(String),
 

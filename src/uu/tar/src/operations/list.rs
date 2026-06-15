@@ -28,68 +28,64 @@ pub fn list_archive(
         let entry = entry_result.map_err(TarError::CannotReadEntry)?;
 
         if verbose {
-            // Collect all header fields into owned values before borrowing entry for the path,
-            // since both header() and path() require a borrow of entry.
-            let (mode, entry_type, owner, group, size, mtime) = {
-                let header = entry.header();
-                (
-                    header.mode().unwrap_or(0),
-                    header.entry_type(),
-                    header
-                        .username()
-                        .ok()
-                        .flatten()
-                        .unwrap_or_default()
-                        .to_owned(),
-                    header
-                        .groupname()
-                        .ok()
-                        .flatten()
-                        .unwrap_or_default()
-                        .to_owned(),
-                    header.size().unwrap_or(0),
-                    header.mtime().unwrap_or(0),
-                )
-            };
-
-            let path = entry.path().map_err(TarError::CannotReadEntryPath)?;
-
-            let type_char = match entry_type {
-                tar::EntryType::Directory => 'd',
-                tar::EntryType::Symlink => 'l',
-                tar::EntryType::Char => 'c',
-                tar::EntryType::Block => 'b',
-                tar::EntryType::Fifo => 'p',
-                _ => '-',
-            };
-            // Tar headers store the type separately from the mode bits, so we get the
-            // 9-character rwx string from uucore and prepend our own type character.
-            let perm_str = display_permissions_unix(mode, false);
-            let permissions = format!("{type_char}{perm_str}");
-
-            // TODO: GNU tar displays mtime in the user's local timezone; we
-            // currently format in UTC. Convert to local time for compatibility.
-            let dt: chrono::DateTime<Utc> = Utc
-                .timestamp_opt(mtime as i64, 0)
-                .single()
-                .unwrap_or_else(Utc::now);
-            let date_str = dt.format("%Y-%m-%d %H:%M");
-
-            writeln!(
-                out,
-                "{permissions} {owner}/{group} {size:>8} {date_str} {}",
-                path.display()
-            )
-            .map_err(TarError::Io)?;
+            let formatted = format_verbose_entry(&entry)?;
+            writeln!(out, "{formatted}").map_err(TarError::Io)?;
         } else {
             let path = entry.path().map_err(TarError::CannotReadEntryPath)?;
-
             writeln!(out, "{}", path.display()).map_err(TarError::Io)?;
         }
     }
 
     out.flush().map_err(TarError::Io)?;
     Ok(())
+}
+
+fn format_verbose_entry<R: Read>(entry: &tar::Entry<'_, R>) -> Result<String, TarError> {
+    let (mode, entry_type, owner, group, size, mtime) = {
+        let header = entry.header();
+        (
+            header.mode().unwrap_or(0),
+            header.entry_type(),
+            header
+                .username()
+                .ok()
+                .flatten()
+                .unwrap_or_default()
+                .to_owned(),
+            header
+                .groupname()
+                .ok()
+                .flatten()
+                .unwrap_or_default()
+                .to_owned(),
+            header.size().unwrap_or(0),
+            header.mtime().unwrap_or(0),
+        )
+    };
+
+    let path = entry.path().map_err(TarError::CannotReadEntryPath)?;
+
+    let type_char = match entry_type {
+        tar::EntryType::Directory => 'd',
+        tar::EntryType::Symlink => 'l',
+        tar::EntryType::Char => 'c',
+        tar::EntryType::Block => 'b',
+        tar::EntryType::Fifo => 'p',
+        _ => '-',
+    };
+    let perm_str = display_permissions_unix(mode, false);
+    let permissions = format!("{type_char}{perm_str}");
+
+    let dt: chrono::DateTime<Utc> = Utc
+        .timestamp_opt(mtime as i64, 0)
+        .single()
+        .unwrap_or_else(Utc::now);
+    let date_str = dt.format("%Y-%m-%d %H:%M");
+
+    Ok(format!(
+        "{permissions} {owner}/{group} {size:>8} {date_str} {}",
+        path.display()
+    ))
 }
 
 #[cfg(test)]

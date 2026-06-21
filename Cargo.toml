@@ -40,7 +40,7 @@ clap_mangen = "0.3"
 ctor = "1.0.0"
 libc = "0.2.153"
 phf = "0.13.0"
-phf_codegen = "0.13.0"
+phf_codegen = "0.14.0"
 rand = { version = "0.10.0" }
 regex = "1.10.4"
 rustix = "1.1.4"

@@ -42,9 +42,14 @@ fn test_keystring_rejects_no_function_letter() {
 
 #[test]
 fn test_keystring_rejects_invalid_chars() {
-    assert!(!is_posix_keystring("cz")); // 'z' is not a key char
     assert!(!is_posix_keystring("c1")); // digits not allowed
     assert!(!is_posix_keystring("archive.tar")); // typical filename
+}
+
+#[test]
+fn test_keystring_accepts_gzip_modifier() {
+    assert!(is_posix_keystring("czf"));
+    assert!(is_posix_keystring("zcf"));
 }
 
 #[test]

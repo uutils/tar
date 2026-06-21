@@ -3,6 +3,7 @@
 // For the full copyright and license information, please view the LICENSE
 // file that was distributed with this source code.
 
+pub mod compression;
 pub mod errors;
 pub mod operations;
 
@@ -19,7 +20,9 @@ const USAGE: &str = "tar key [FILE...]\n       tar {-c|-t|-x} [-v] -f ARCHIVE [F
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CompressionMode {
+    Auto,
     None,
+    Gzip,
     Zstd,
 }
 
@@ -32,10 +35,11 @@ fn is_posix_keystring(s: &str) -> bool {
     if s.is_empty() || s.starts_with('-') {
         return false;
     }
-    let valid_chars = "cxturvwfblmo";
+    let valid_chars = "cxturvwfblmoz";
     // function letters: c=create, x=extract, t=list, u=update, r=append
     // modifier letters: v=verbose, w=interactive, f=file, b=blocking-factor,
-    //                   l=one-file-system, m=modification-time, o=no-same-owner
+    //                   l=one-file-system, m=modification-time, o=no-same-owner,
+    //                   z=gzip
     s.chars().all(|c| valid_chars.contains(c)) && s.chars().any(|c| "cxtur".contains(c))
 }
 
@@ -141,10 +145,12 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
 
     let verbose = matches.get_flag("verbose");
     let allow_absolute = matches.get_flag("absolute-names");
-    let compression = if matches.get_flag("zstd") {
-        CompressionMode::Zstd
+    let explicit_compression = if matches.get_flag("gzip") {
+        Some(CompressionMode::Gzip)
+    } else if matches.get_flag("zstd") {
+        Some(CompressionMode::Zstd)
     } else {
-        CompressionMode::None
+        None
     };
 
     // Handle extract operation
@@ -153,6 +159,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
             uucore::error::USimpleError::new(64, "option requires an argument -- 'f'")
         })?;
 
+        let compression = explicit_compression.unwrap_or(CompressionMode::Auto);
         return if archive_path == Path::new("-") {
             operations::extract::extract_archive(io::stdin(), archive_path, verbose, compression)
         } else {
@@ -180,6 +187,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
             ));
         }
 
+        let compression = explicit_compression.unwrap_or(CompressionMode::None);
         let output_is_stdout = archive_path == Path::new("-");
         return if output_is_stdout {
             if io::stdout().is_terminal() {
@@ -219,6 +227,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
             uucore::error::USimpleError::new(64, "option requires an argument -- 'f'")
         })?;
 
+        let compression = explicit_compression.unwrap_or(CompressionMode::Auto);
         return if archive_path == Path::new("-") {
             operations::list::list_archive(io::stdin(), archive_path, verbose, compression)
         } else {
@@ -261,10 +270,10 @@ pub fn uu_app() -> Command {
                 "Don't strip leading '/'s from file names"
             ),
             // Compression options
-            // arg!(-z --gzip "Filter through gzip"),
+            arg!(-z --gzip "Filter through gzip").conflicts_with("zstd"),
             // arg!(-j --bzip2 "Filter through bzip2"),
             // arg!(-J --xz "Filter through xz"),
-            arg!(--zstd "Filter through zstd"),
+            arg!(--zstd "Filter through zstd").conflicts_with("gzip"),
             // Common options
             arg!(-v --verbose "Verbosely list files processed"),
             // arg!(-h --dereference "Follow symlinks"),

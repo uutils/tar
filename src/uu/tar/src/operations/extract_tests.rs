@@ -149,3 +149,86 @@ fn test_extract_strip_components_skips_shallow_entries() {
     assert!(!tempdir.path().join("root.txt").exists());
     assert!(tempdir.path().join("deep.txt").exists());
 }
+
+fn make_plain_tar(archive_path: &std::path::Path, entries: &[(&str, &str)]) {
+    let output = fs::File::create(archive_path).unwrap();
+    let mut builder = tar::Builder::new(output);
+    for (name, content) in entries {
+        let mut header = tar::Header::new_gnu();
+        header.set_mode(0o644);
+        header.set_size(content.len() as u64);
+        header.set_cksum();
+        builder
+            .append_data(&mut header, name, std::io::Cursor::new(content.as_bytes()))
+            .unwrap();
+    }
+    builder.finish().unwrap();
+}
+
+#[test]
+fn test_extract_strip_components_verbose() {
+    let tempdir = tempdir().unwrap();
+    let archive_path = tempdir.path().join("archive.tar.zst");
+    make_zstd_tar(&archive_path, &[("prefix/file.txt", "content")]);
+
+    let _guard = crate::operations::TestDirGuard::enter(tempdir.path());
+    let input = fs::File::open(&archive_path).unwrap();
+    extract_archive(
+        input,
+        &archive_path,
+        true,
+        CompressionMode::Zstd,
+        &[],
+        false,
+        1,
+    )
+    .unwrap();
+
+    assert!(tempdir.path().join("file.txt").exists());
+}
+
+#[test]
+fn test_extract_strip_creates_parent_dirs() {
+    let tempdir = tempdir().unwrap();
+    let archive_path = tempdir.path().join("archive.tar.zst");
+    // strip 1 → "subdir/file.txt"; parent "subdir" is non-empty → create_dir_all
+    make_zstd_tar(&archive_path, &[("prefix/subdir/file.txt", "content")]);
+
+    let _guard = crate::operations::TestDirGuard::enter(tempdir.path());
+    let input = fs::File::open(&archive_path).unwrap();
+    extract_archive(
+        input,
+        &archive_path,
+        false,
+        CompressionMode::Zstd,
+        &[],
+        false,
+        1,
+    )
+    .unwrap();
+
+    assert!(tempdir.path().join("subdir/file.txt").exists());
+}
+
+#[test]
+fn test_extract_strip_rejects_path_traversal() {
+    let tempdir = tempdir().unwrap();
+    let archive_path = tempdir.path().join("archive.tar");
+    // "prefix/../../../escape.txt": after stripping "prefix", remaining path has ".." → rejected
+    make_plain_tar(&archive_path, &[("prefix/../../../escape.txt", "evil")]);
+
+    let _guard = crate::operations::TestDirGuard::enter(tempdir.path());
+    let input = fs::File::open(&archive_path).unwrap();
+    extract_archive(
+        input,
+        &archive_path,
+        false,
+        CompressionMode::None,
+        &[],
+        false,
+        1,
+    )
+    .unwrap();
+
+    assert!(!tempdir.path().join("escape.txt").exists());
+}

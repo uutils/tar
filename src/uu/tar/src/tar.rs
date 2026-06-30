@@ -150,6 +150,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         .get_one::<u32>("strip-components")
         .copied()
         .unwrap_or(0);
+    let directory = matches.get_one::<PathBuf>("directory").cloned();
     let explicit_compression = if matches.get_flag("gzip") {
         Some(CompressionMode::Gzip)
     } else if matches.get_flag("zstd") {
@@ -171,6 +172,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
 
         let compression = explicit_compression.unwrap_or(CompressionMode::Auto);
         return if archive_path == Path::new("-") {
+            apply_directory(&directory)?;
             operations::extract::extract_archive(
                 io::stdin(),
                 archive_path,
@@ -183,6 +185,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         } else {
             let file =
                 File::open(archive_path).map_err(|e| TarError::from_io_error(e, archive_path))?;
+            apply_directory(&directory)?;
             operations::extract::extract_archive(
                 file,
                 archive_path,
@@ -221,6 +224,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
             } else {
                 let output = io::stdout().lock();
                 let status_output = io::stderr();
+                apply_directory(&directory)?;
                 operations::create::create_archive(
                     output,
                     status_output,
@@ -235,6 +239,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
                 path: archive_path.clone(),
                 source: e,
             })?;
+            apply_directory(&directory)?;
             let status_output = io::stdout().lock();
             operations::create::create_archive(
                 output,
@@ -291,6 +296,16 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     ))
 }
 
+fn apply_directory(dir: &Option<PathBuf>) -> UResult<()> {
+    if let Some(d) = dir {
+        std::env::set_current_dir(d).map_err(|e| TarError::CannotChangeDirectory {
+            path: d.clone(),
+            source: e,
+        })?;
+    }
+    Ok(())
+}
+
 #[allow(clippy::cognitive_complexity)]
 pub fn uu_app() -> Command {
     Command::new("tar (uutils)")
@@ -325,6 +340,8 @@ pub fn uu_app() -> Command {
             arg!(-v --verbose "Verbosely list files processed"),
             // arg!(-h --dereference "Follow symlinks"),
             // arg!(-p --"preserve-permissions" "Extract information about file permissions"),
+            arg!(-C --directory <DIR> "Change to directory DIR before performing any operation")
+                .value_parser(clap::value_parser!(PathBuf)),
             arg!(--wildcards "Use wildcards when matching file names"),
             arg!(--"strip-components" <NUMBER> "Strip NUMBER leading components from file names")
                 .value_parser(clap::value_parser!(u32)),

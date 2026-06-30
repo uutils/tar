@@ -1494,3 +1494,56 @@ fn test_wildcards_and_strip_components_combined() {
         .stdout_contains("keep.txt")
         .stdout_does_not_contain("skip.rs");
 }
+
+#[test]
+fn test_extract_with_directory_option() {
+    let (at, mut ucmd) = at_and_ucmd!();
+
+    at.write("file.txt", "hello");
+    ucmd.args(&["-cf", "archive.tar", "file.txt"]).succeeds();
+    at.remove("file.txt");
+
+    at.mkdir("dest");
+    new_ucmd!()
+        .args(&["-xf", "archive.tar", "-C", "dest"])
+        .current_dir(at.as_string())
+        .succeeds();
+
+    assert!(at.file_exists("dest/file.txt"));
+    assert_eq!(at.read("dest/file.txt"), "hello");
+    assert!(!at.file_exists("file.txt"));
+}
+
+#[test]
+fn test_extract_directory_option_with_strip_components() {
+    let (at, mut ucmd) = at_and_ucmd!();
+
+    at.mkdir("src");
+    at.write("src/file.txt", "content");
+    ucmd.args(&["-cf", "archive.tar", "src"]).succeeds();
+    at.remove("src/file.txt");
+
+    at.mkdir("dest");
+    new_ucmd!()
+        .args(&["-xf", "archive.tar", "-C", "dest", "--strip-components=1"])
+        .current_dir(at.as_string())
+        .succeeds();
+
+    assert!(at.file_exists("dest/file.txt"));
+    assert!(!at.file_exists("dest/src/file.txt"));
+}
+
+#[test]
+fn test_extract_directory_option_nonexistent_dir_fails() {
+    let (at, mut ucmd) = at_and_ucmd!();
+
+    at.write("file.txt", "content");
+    ucmd.args(&["-cf", "archive.tar", "file.txt"]).succeeds();
+
+    new_ucmd!()
+        .args(&["-xf", "archive.tar", "-C", "nonexistent"])
+        .current_dir(at.as_string())
+        .fails()
+        .code_is(2)
+        .stderr_contains("Cannot change directory");
+}

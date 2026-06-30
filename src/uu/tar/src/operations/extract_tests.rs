@@ -150,19 +150,35 @@ fn test_extract_strip_components_skips_shallow_entries() {
     assert!(tempdir.path().join("deep.txt").exists());
 }
 
-fn make_plain_tar(archive_path: &std::path::Path, entries: &[(&str, &str)]) {
-    let output = fs::File::create(archive_path).unwrap();
-    let mut builder = tar::Builder::new(output);
-    for (name, content) in entries {
-        let mut header = tar::Header::new_gnu();
-        header.set_mode(0o644);
-        header.set_size(content.len() as u64);
-        header.set_cksum();
-        builder
-            .append_data(&mut header, name, std::io::Cursor::new(content.as_bytes()))
-            .unwrap();
-    }
-    builder.finish().unwrap();
+/// Write a minimal POSIX tar archive as raw bytes, bypassing the `tar` crate's path
+/// validation. Real-world malicious archives can contain `..` or absolute path components
+/// that the `tar` builder refuses to create — this helper lets us test those cases.
+fn make_raw_traversal_tar(archive_path: &std::path::Path, entry_name: &[u8], content: &[u8]) {
+    use std::io::Write;
+
+    let mut header = [0u8; 512];
+    let n = entry_name.len().min(100);
+    header[..n].copy_from_slice(&entry_name[..n]);
+    header[100..108].copy_from_slice(b"0000644\0");
+    header[108..116].copy_from_slice(b"0000000\0");
+    header[116..124].copy_from_slice(b"0000000\0");
+    let size_str = format!("{:011o}\0", content.len());
+    header[124..136].copy_from_slice(size_str.as_bytes());
+    header[136..148].copy_from_slice(b"00000000000\0");
+    header[148..156].fill(b' '); // spaces for checksum calculation
+    header[156] = b'0'; // regular file
+    header[257..263].copy_from_slice(b"ustar\0");
+    header[263..265].copy_from_slice(b"00");
+    let checksum: u32 = header.iter().map(|&b| b as u32).sum();
+    let cs = format!("{:06o}\0 ", checksum);
+    header[148..156].copy_from_slice(cs.as_bytes());
+
+    let pad = (512 - (content.len() % 512)) % 512;
+    let mut file = fs::File::create(archive_path).unwrap();
+    file.write_all(&header).unwrap();
+    file.write_all(content).unwrap();
+    file.write_all(&vec![0u8; pad]).unwrap();
+    file.write_all(&[0u8; 1024]).unwrap(); // end-of-archive
 }
 
 #[test]
@@ -214,8 +230,9 @@ fn test_extract_strip_creates_parent_dirs() {
 fn test_extract_strip_rejects_path_traversal() {
     let tempdir = tempdir().unwrap();
     let archive_path = tempdir.path().join("archive.tar");
-    // "prefix/../../../escape.txt": after stripping "prefix", remaining path has ".." → rejected
-    make_plain_tar(&archive_path, &[("prefix/../../../escape.txt", "evil")]);
+    // After stripping "prefix", the remaining path "../../../escape.txt" contains ".." → skip.
+    // We write raw bytes to bypass the `tar` crate's builder validation (which also rejects "..").
+    make_raw_traversal_tar(&archive_path, b"prefix/../../../escape.txt", b"evil");
 
     let _guard = crate::operations::TestDirGuard::enter(tempdir.path());
     let input = fs::File::open(&archive_path).unwrap();

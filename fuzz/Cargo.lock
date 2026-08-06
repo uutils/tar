@@ -932,7 +932,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.3.4",
+ "getrandom 0.4.2",
  "once_cell",
  "rustix",
  "windows-sys",
@@ -1055,7 +1055,6 @@ dependencies = [
  "fluent",
  "fluent-syntax",
  "glob",
- "libc",
  "nix",
  "num-traits",
  "os_display",
@@ -1091,6 +1090,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "uucore"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e97dd0fd8bb2ed12affba9f956c3b94b8ad3f9432746717475420e916ae0b8d4"
+dependencies = [
+ "clap",
+ "fluent",
+ "fluent-syntax",
+ "libc",
+ "nix",
+ "os_display",
+ "rustc-hash",
+ "rustix",
+ "thiserror",
+ "unic-langid",
+ "unicode-width",
+ "uucore_procs 0.10.0",
+ "wild",
+]
+
+[[package]]
 name = "uucore-fuzz"
 version = "0.0.0"
 dependencies = [
@@ -1101,7 +1121,7 @@ dependencies = [
  "similar",
  "tempfile",
  "uu_tar",
- "uucore 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "uucore 0.10.0",
  "uufuzz",
 ]
 
@@ -1119,6 +1139,16 @@ dependencies = [
 name = "uucore_procs"
 version = "0.9.0"
 source = "git+https://github.com/uutils/coreutils#48d030dfb2ca7659ee2735f09cda706c8245a3fc"
+dependencies = [
+ "proc-macro2",
+ "quote",
+]
+
+[[package]]
+name = "uucore_procs"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "907f1b828046ea42cdb4bd898f05b48ab873a41937bf75ebe12f09a5bf411f58"
 dependencies = [
  "proc-macro2",
  "quote",

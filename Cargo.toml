@@ -6,7 +6,6 @@
 [package]
 name = "tarapp"
 version = "0.0.1"
-authors = ["uutils developers"]
 license = "MIT"
 description = "tar ~ implemented as universal (cross-platform) utils, written in Rust"
 default-run = "tarapp"

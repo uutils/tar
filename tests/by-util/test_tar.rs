@@ -1326,3 +1326,245 @@ fn test_extract_invalid_gzip_archive_fails() {
 
     ucmd.args(&["-xf", "invalid.tar.gz"]).fails().code_is(2);
 }
+
+#[test]
+#[cfg(unix)]
+fn test_create_with_symlinks() {
+    let (at, mut ucmd) = at_and_ucmd!();
+
+    at.write("file.txt", "target content");
+
+    let link_path = at.plus("link.txt");
+    std::os::unix::fs::symlink("file.txt", &link_path).unwrap();
+
+    let broken_link_path = at.plus("broken_link.txt");
+    std::os::unix::fs::symlink("nonexistent.txt", &broken_link_path).unwrap();
+
+    at.mkdir("dir");
+    at.write("dir/file.txt", "dir file content");
+
+    let dir_link_path = at.plus("dir_link");
+    std::os::unix::fs::symlink("dir", &dir_link_path).unwrap();
+
+    ucmd.args(&[
+        "-cf",
+        "archive.tar",
+        "file.txt",
+        "link.txt",
+        "broken_link.txt",
+        "dir_link",
+    ])
+    .succeeds()
+    .no_output();
+
+    assert!(at.file_exists("archive.tar"));
+
+    at.mkdir("extract_dir");
+    let archive_abs_path = at.plus("archive.tar");
+
+    new_ucmd!()
+        .arg("-xf")
+        .arg(&archive_abs_path)
+        .current_dir(at.plus("extract_dir"))
+        .succeeds()
+        .no_output();
+
+    let extracted_at = at.plus("extract_dir");
+
+    let link_meta = std::fs::symlink_metadata(extracted_at.join("link.txt")).unwrap();
+    assert!(link_meta.file_type().is_symlink());
+    assert_eq!(
+        std::fs::read_link(extracted_at.join("link.txt")).unwrap(),
+        std::path::Path::new("file.txt")
+    );
+
+    let broken_link_meta = std::fs::symlink_metadata(extracted_at.join("broken_link.txt")).unwrap();
+    assert!(broken_link_meta.file_type().is_symlink());
+    assert_eq!(
+        std::fs::read_link(extracted_at.join("broken_link.txt")).unwrap(),
+        std::path::Path::new("nonexistent.txt")
+    );
+
+    let dir_link_meta = std::fs::symlink_metadata(extracted_at.join("dir_link")).unwrap();
+    assert!(dir_link_meta.file_type().is_symlink());
+    assert_eq!(
+        std::fs::read_link(extracted_at.join("dir_link")).unwrap(),
+        std::path::Path::new("dir")
+    );
+}
+
+#[test]
+#[cfg(unix)]
+fn test_create_with_nested_symlinks() {
+    let (at, mut ucmd) = at_and_ucmd!();
+
+    at.mkdir("parent");
+    at.write("parent/file.txt", "content");
+
+    let link_path = at.plus("parent/link.txt");
+    std::os::unix::fs::symlink("file.txt", &link_path).unwrap();
+
+    let broken_link_path = at.plus("parent/broken_link.txt");
+    std::os::unix::fs::symlink("nonexistent.txt", &broken_link_path).unwrap();
+
+    at.mkdir("parent/child");
+    at.write("parent/child/file.txt", "child file");
+
+    let dir_link_path = at.plus("parent/dir_link");
+    std::os::unix::fs::symlink("child", &dir_link_path).unwrap();
+
+    ucmd.args(&["-cf", "archive.tar", "parent"])
+        .succeeds()
+        .no_output();
+
+    assert!(at.file_exists("archive.tar"));
+
+    at.mkdir("extract_dir");
+    let archive_abs_path = at.plus("archive.tar");
+
+    new_ucmd!()
+        .arg("-xf")
+        .arg(&archive_abs_path)
+        .current_dir(at.plus("extract_dir"))
+        .succeeds()
+        .no_output();
+
+    let extracted_parent = at.plus("extract_dir").join("parent");
+
+    assert_eq!(
+        std::fs::read_link(extracted_parent.join("link.txt")).unwrap(),
+        std::path::Path::new("file.txt")
+    );
+    assert_eq!(
+        std::fs::read_link(extracted_parent.join("broken_link.txt")).unwrap(),
+        std::path::Path::new("nonexistent.txt")
+    );
+    assert_eq!(
+        std::fs::read_link(extracted_parent.join("dir_link")).unwrap(),
+        std::path::Path::new("child")
+    );
+}
+
+#[test]
+#[cfg(unix)]
+fn test_create_with_symlinks_verbose() {
+    let (at, mut ucmd) = at_and_ucmd!();
+
+    at.write("file.txt", "content");
+
+    at.mkdir("dir");
+    at.write("dir/file.txt", "content");
+
+    let dir_link_path = at.plus("dir_link");
+    std::os::unix::fs::symlink("dir", &dir_link_path).unwrap();
+
+    let result = ucmd
+        .args(&["-cvf", "archive.tar", "file.txt", "dir_link"])
+        .succeeds();
+
+    let stdout = result.stdout_str();
+
+    assert!(stdout.contains("file.txt"));
+    assert!(stdout.contains("dir_link"));
+    assert!(!stdout.contains("dir_link/"));
+    assert!(!stdout.contains("dir_link/file.txt"));
+}
+
+#[test]
+fn test_create_absolute_path_with_parent_dirs() {
+    let (at, mut ucmd) = at_and_ucmd!();
+
+    at.mkdir("a");
+    at.mkdir("a/b");
+    let mut file_abs_path = PathBuf::from(at.root_dir_resolved());
+    file_abs_path.push("a");
+    file_abs_path.push("b");
+    file_abs_path.push("..");
+    file_abs_path.push("c");
+
+    at.write("a/c", "content");
+
+    ucmd.args(&["-cf", "archive.tar", &file_abs_path.display().to_string()])
+        .succeeds();
+
+    let expected_path = PathBuf::from(at.root_dir_resolved())
+        .components()
+        .filter(|c| !matches!(c, path::Component::RootDir | path::Component::Prefix(_)))
+        .collect::<PathBuf>()
+        .join("a")
+        .join("c");
+
+    let expected_path_str = expected_path.to_string_lossy().replace('\\', "/");
+    new_ucmd!()
+        .args(&["-tf", "archive.tar"])
+        .current_dir(at.as_string())
+        .succeeds()
+        .stdout_contains(expected_path_str);
+}
+
+#[test]
+fn test_create_relative_path_with_leading_parent_dirs() {
+    let (at, mut ucmd) = at_and_ucmd!();
+
+    at.write("file.txt", "content");
+    at.mkdir("subdir");
+
+    ucmd.args(&["-cf", "archive.tar", "../file.txt"])
+        .current_dir(at.plus("subdir"))
+        .succeeds()
+        .stderr_contains("tar: Removing leading `..' from member names");
+
+    new_ucmd!()
+        .args(&["-tf", "subdir/archive.tar"])
+        .current_dir(at.as_string())
+        .succeeds()
+        .stdout_contains("file.txt");
+}
+
+#[test]
+#[cfg(unix)]
+fn test_create_input_permission_denied() {
+    if rustix::process::geteuid().is_root() {
+        eprintln!("skipping: running as root");
+        return;
+    }
+
+    let (at, mut ucmd) = at_and_ucmd!();
+
+    at.mkdir("private");
+    at.write("private/file.txt", "content");
+    // Make directory inaccessible
+    at.set_mode("private", 0o000);
+
+    ucmd.args(&["-cf", "archive.tar", "private/file.txt"])
+        .fails()
+        .code_is(2)
+        .stderr_contains("Permission denied");
+
+    // Cleanup
+    at.set_mode("private", 0o755);
+}
+
+#[test]
+#[cfg(unix)]
+fn test_create_directory_unreadable_file() {
+    if rustix::process::geteuid().is_root() {
+        eprintln!("skipping: running as root");
+        return;
+    }
+
+    let (at, mut ucmd) = at_and_ucmd!();
+
+    at.mkdir("dir");
+    at.write("dir/file.txt", "content");
+    // Make file unreadable
+    at.set_mode("dir/file.txt", 0o000);
+
+    ucmd.args(&["-cf", "archive.tar", "dir"])
+        .fails()
+        .code_is(2)
+        .stderr_contains("Permission denied");
+
+    // Cleanup
+    at.set_mode("dir/file.txt", 0o644);
+}

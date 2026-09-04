@@ -127,6 +127,31 @@ def analyze_test_results(json_data):
     }
 
 
+def load_or_aggregate_results(json_files):
+    if not json_files:
+        raise ValueError("no JSON input files provided")
+
+    if len(json_files) == 1:
+        try:
+            with open(json_files[0], "r") as file:
+                return json.load(file)
+        except FileNotFoundError:
+            print(f"Error: File '{json_files[0]}' not found.", file=sys.stderr)
+            sys.exit(1)
+        except json.JSONDecodeError:
+            print(
+                f"Error: '{json_files[0]}' is not a valid JSON file.", file=sys.stderr
+            )
+            sys.exit(1)
+
+    return aggregate_results(json_files)
+
+
+def write_results(output_file, json_data):
+    with open(output_file, "w") as f:
+        json.dump(json_data, f, indent=2)
+
+
 def main():
     """
     Main function to process JSON files and export variables.
@@ -147,30 +172,18 @@ def main():
         output_file = json_files[0][3:]
         json_files = json_files[1:]
 
-    # Process the files
-    if len(json_files) == 1:
-        # Single file analysis
-        try:
-            with open(json_files[0], "r") as file:
-                json_data = json.load(file)
-            results = analyze_test_results(json_data)
-        except FileNotFoundError:
-            print(f"Error: File '{json_files[0]}' not found.", file=sys.stderr)
-            sys.exit(1)
-        except json.JSONDecodeError:
-            print(
-                f"Error: '{json_files[0]}' is not a valid JSON file.", file=sys.stderr
-            )
-            sys.exit(1)
-    else:
-        # Multiple files - aggregate them
-        json_data = aggregate_results(json_files)
-        results = analyze_test_results(json_data)
+    try:
+        json_data = load_or_aggregate_results(json_files)
+    except ValueError as e:
+        print(f"Error: {e}.", file=sys.stderr)
+        sys.exit(1)
 
-        # Save aggregated data if output file is specified
-        if output_file:
-            with open(output_file, "w") as f:
-                json.dump(json_data, f, indent=2)
+    results = analyze_test_results(json_data)
+
+    # Save aggregated data if output file is specified. For a single input, this
+    # writes the normalized input so downstream workflow steps always have it.
+    if output_file:
+        write_results(output_file, json_data)
 
     # Print export statements for shell evaluation
     print(f"export TOTAL={results['TOTAL']}")

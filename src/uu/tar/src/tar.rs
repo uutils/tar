@@ -97,6 +97,16 @@ fn expand_posix_keystring(args: Vec<std::ffi::OsString>) -> Vec<std::ffi::OsStri
 
 #[uucore::main]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
+    // Restore the default SIGPIPE disposition so that a closed stdout pipe
+    // (e.g. `tar tf archive.tar | head -1`) terminates the process with
+    // SIGPIPE, exit status 141, silently — matching GNU tar. The Rust
+    // runtime ignores SIGPIPE by default, which would instead surface the
+    // error as a noisy `TarError::Io` with exit code 2.
+    #[cfg(unix)]
+    unsafe {
+        libc::signal(libc::SIGPIPE, libc::SIG_DFL);
+    }
+
     // Collect args - the test framework may add util_name as args[1], so skip it if present
     let args_vec: Vec<_> = args.collect();
     let util_name = uucore::util_name();

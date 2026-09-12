@@ -1326,3 +1326,43 @@ fn test_extract_invalid_gzip_archive_fails() {
 
     ucmd.args(&["-xf", "invalid.tar.gz"]).fails().code_is(2);
 }
+
+#[cfg(unix)]
+#[test]
+fn test_list_broken_pipe_exits_via_sigpipe() {
+    // `tar tf archive.tar | head -1` must terminate via SIGPIPE (exit
+    // status 141) silently, like GNU tar — not report an I/O error with
+    // exit code 2 (uutils/tar#263). The archive lists more than a pipe's
+    // worth of entries so the write is guaranteed to fail once the
+    // reader is gone.
+    let (at, _ucmd) = at_and_ucmd!();
+
+    let mut tar_bytes = Vec::new();
+    {
+        let mut builder = TarRsBuilder::new(&mut tar_bytes);
+        let content = b"list test content";
+        for i in 0..900 {
+            let mut header = TarRsHeader::new_gnu();
+            header.set_path(format!("f{i}_{}", "x".repeat(80))).unwrap();
+            header.set_size(content.len() as u64);
+            header.set_mode(0o644);
+            header.set_cksum();
+            builder.append(&header, &content[..]).unwrap();
+        }
+        builder.finish().unwrap();
+    }
+    at.write_bytes("archive.tar", &tar_bytes);
+
+    use std::os::unix::process::ExitStatusExt;
+    use std::process::{Command, Stdio};
+    let mut child = Command::new(env!("CARGO_BIN_EXE_tarapp"))
+        .args(["-tf", &at.plus_as_string("archive.tar")])
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    // Close the read end of the pipe: the next stdout write raises EPIPE.
+    drop(child.stdout.take());
+    let status = child.wait().unwrap();
+    assert_eq!(status.code(), None, "expected a signal death, not an exit");
+    assert_eq!(status.signal(), Some(13), "expected death by SIGPIPE (141)");
+}

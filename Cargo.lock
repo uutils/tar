@@ -1337,7 +1337,6 @@ dependencies = [
  "pretty_assertions",
  "rand",
  "regex",
- "rlimit",
  "rustix",
  "tar",
  "tempfile",

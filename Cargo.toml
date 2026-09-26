@@ -59,7 +59,6 @@ clap = { workspace = true }
 clap_complete = { workspace = true }
 clap_mangen = { workspace = true }
 ctor = { workspace = true }
-flate2 = { workspace = true }
 phf = { workspace = true }
 textwrap = { workspace = true }
 uucore = { workspace = true }
@@ -71,6 +70,7 @@ tar = { optional = true, version = "0.0.1", package = "uu_tar", path = "src/uu/t
 [dev-dependencies]
 chrono = { workspace = true }
 divan = { version = "5.0.0", package = "codspeed-divan-compat" }
+flate2 = { workspace = true }
 pretty_assertions = "1"
 rand = { workspace = true }
 regex = { workspace = true }

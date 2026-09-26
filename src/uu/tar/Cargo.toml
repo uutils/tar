@@ -12,14 +12,14 @@ categories = ["command-line-utilities"]
 
 
 [dependencies]
-uucore = { workspace = true, features = ["fs"] }
+chrono = { workspace = true }
 clap = { workspace = true }
+flate2 = { workspace = true }
 regex = { workspace = true }
 tar = { workspace = true }
-chrono = { workspace = true }
 thiserror = { workspace = true }
+uucore = { workspace = true, features = ["fs"] }
 zstd = { workspace = true }
-flate2 = "1"
 
 [lib]
 path = "src/tar.rs"

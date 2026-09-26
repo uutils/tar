@@ -6,7 +6,6 @@
 use crate::compression::open_archive_reader;
 use crate::errors::TarError;
 use crate::CompressionMode;
-use chrono::{TimeZone, Utc};
 use std::io::Read;
 use std::io::{self, BufWriter, Write};
 use std::path::Path;
@@ -77,11 +76,11 @@ fn format_verbose_entry<R: Read>(entry: &tar::Entry<'_, R>) -> Result<String, Ta
     let perm_str = display_permissions_unix(mode, false);
     let permissions = format!("{type_char}{perm_str}");
 
-    let dt: chrono::DateTime<Utc> = Utc
-        .timestamp_opt(mtime as i64, 0)
-        .single()
-        .unwrap_or_else(Utc::now);
-    let date_str = dt.format("%Y-%m-%d %H:%M");
+    let timestamp =
+        jiff::Timestamp::from_second(mtime as i64).unwrap_or_else(|_| jiff::Timestamp::now());
+
+    let dt = timestamp.to_zoned(jiff::tz::TimeZone::UTC);
+    let date_str = dt.strftime("%Y-%m-%d %H:%M");
 
     Ok(format!(
         "{permissions} {owner}/{group} {size:>8} {date_str} {}",

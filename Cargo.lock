@@ -1567,6 +1567,7 @@ dependencies = [
  "chrono",
  "clap",
  "flate2",
+ "libc",
  "regex",
  "tar",
  "tempfile",

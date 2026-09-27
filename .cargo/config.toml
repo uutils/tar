@@ -1,0 +1,8 @@
+# Note: keep in mind that this file is completely ignored in several use-cases
+# like e.g. out-of-tree builds ( https://github.com/rust-lang/cargo/issues/2930 ).
+# For this reason this file should be avoided as much as possible when there are alternatives.
+
+[build]
+# flate2 uses zlib-rs
+# <https://github.com/trifectatechfoundation/zlib-rs#-cllvm-args-enable-dfa-jump-thread>
+rustflags = ["-C", "llvm-args=-enable-dfa-jump-thread"]

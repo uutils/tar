@@ -66,6 +66,10 @@ pub enum TarError {
     /// Refusing to write archive contents to terminal
     #[error("tar: Refusing to write archive contents to terminal (missing -f option?)")]
     RefuseWriteArchiveToTerminal,
+
+    /// Cannot change working directory
+    #[error("tar: Cannot change directory to '{path}': {source}")]
+    CannotChangeDirectory { path: PathBuf, source: io::Error },
 }
 
 impl TarError {

@@ -12,9 +12,9 @@ categories = ["command-line-utilities"]
 
 
 [dependencies]
-chrono = { workspace = true }
 clap = { workspace = true }
 flate2 = { workspace = true }
+jiff = { workspace = true }
 regex = { workspace = true }
 tar = { workspace = true }
 thiserror = { workspace = true }

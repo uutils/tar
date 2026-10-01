@@ -22,7 +22,7 @@ env:
 jobs:
   native:
     name: Run GNU tests (native)
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     defaults:
       run:
         shell: bash
@@ -99,7 +99,7 @@ jobs:
       contents: read
       pull-requests: read
     name: Aggregate GNU test results
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     defaults:
       run:
         shell: bash

@@ -29,16 +29,12 @@ feat_common_core = [
 ]
 
 [workspace.dependencies]
-bytesize = "2.0.0"
 chrono = { version = "0.4.37", default-features = false, features = [
   "clock",
 ] }
 clap = { version = "4.4", features = ["wrap_help", "cargo"] }
-clap_complete = "4.5"
-clap_mangen = "0.3"
 ctor = "1.0.0"
 flate2 = { version = "1.1.10", default-features = false, features = ["zlib-rs"] }
-libc = "0.2.153"
 phf = "0.14.0"
 phf_codegen = "0.14.0"
 rand = { version = "0.10.0" }
@@ -46,7 +42,6 @@ regex = "1.10.4"
 rustix = "1.1.4"
 tar = "0.4"
 tempfile = "3.10.1"
-textwrap = { version = "0.16.1", features = ["terminal_size"] }
 thiserror = "2.0.3"
 uucore = { git = "https://github.com/uutils/coreutils" }
 uutests = { git = "https://github.com/uutils/coreutils" }
@@ -56,11 +51,8 @@ zstd = "0.14.0"
 
 [dependencies]
 clap = { workspace = true }
-clap_complete = { workspace = true }
-clap_mangen = { workspace = true }
 ctor = { workspace = true }
 phf = { workspace = true }
-textwrap = { workspace = true }
 uucore = { workspace = true }
 uutests = { workspace = true }
 zip = { workspace = true, optional = true }

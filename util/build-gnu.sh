@@ -25,7 +25,7 @@ fi
 ln -svf "${UU_BUILD_DIR}/tarapp" "${UU_BUILD_DIR}/tar"
 
 # Extract GNU tar source if needed
-if test ! -d "${path_GNU}/README"; then
+if test ! -f "${path_GNU}/README"; then
     echo "Extracting GNU tar..."
     mkdir -p "${path_GNU}"
     cd "${path_GNU}"

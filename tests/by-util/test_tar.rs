@@ -406,6 +406,115 @@ fn test_list_zstd_archive_created_outside_tar() {
         .stdout_contains("external.txt");
 }
 
+fn archive_with_raw_members(members: &[(&[u8], &[u8])]) -> Vec<u8> {
+    let mut tar_bytes = Vec::new();
+    {
+        let mut builder = TarRsBuilder::new(&mut tar_bytes);
+        for &(name, content) in members {
+            let mut header = TarRsHeader::new_gnu();
+            header.set_size(content.len() as u64);
+            header.set_mode(0o644);
+            header.as_old_mut().name[..name.len()].copy_from_slice(name);
+            header.set_cksum();
+            builder.append(&header, Cursor::new(content)).unwrap();
+        }
+        builder.finish().unwrap();
+    }
+    tar_bytes
+}
+
+#[cfg(unix)]
+#[test]
+fn test_list_locale_changes_valid_utf8_member_name() {
+    let (at, _ucmd) = at_and_ucmd!();
+    at.write_bytes(
+        "unicode-name.tar",
+        &archive_with_raw_members(&[("é".as_bytes(), b"x")]),
+    );
+    for (locale, expected) in [("C", "\\303\\251\n"), ("C.UTF-8", "é\n")] {
+        for flag in ["-tf", "-tvf"] {
+            let output = new_ucmd!()
+                .args(&[flag, "unicode-name.tar"])
+                .env("LC_ALL", locale)
+                .current_dir(at.as_string())
+                .succeeds()
+                .stdout_str()
+                .to_owned();
+            if flag == "-tf" {
+                assert_eq!(output, expected, "{locale}");
+            } else {
+                assert_eq!(output.lines().count(), 1, "{locale}: {output:?}");
+                assert!(output.ends_with(expected), "{locale}: {output:?}");
+            }
+        }
+    }
+}
+
+#[cfg(windows)]
+#[test]
+fn test_list_windows_keeps_non_ascii_name_with_c_locale() {
+    let (at, _ucmd) = at_and_ucmd!();
+    at.write_bytes(
+        "unicode-name.tar",
+        &archive_with_raw_members(&[("é".as_bytes(), b"x")]),
+    );
+    let output = new_ucmd!()
+        .args(&["-tf", "unicode-name.tar"])
+        .current_dir(at.as_string())
+        .succeeds();
+    assert_eq!(output.stdout_str(), "é\n");
+}
+
+#[cfg(windows)]
+#[test]
+fn test_list_windows_quotes_newline_in_plain_and_verbose_output() {
+    let (at, _ucmd) = at_and_ucmd!();
+    at.write_bytes(
+        "newline-name.tar",
+        &archive_with_raw_members(&[(b"line\nname", b"x")]),
+    );
+    for flag in ["-tf", "-tvf"] {
+        let output = new_ucmd!()
+            .args(&[flag, "newline-name.tar"])
+            .current_dir(at.as_string())
+            .succeeds()
+            .stdout_str()
+            .to_owned();
+        if flag == "-tf" {
+            assert_eq!(output, "line\\nname\n");
+        } else {
+            assert_eq!(output.lines().count(), 1, "{flag}: {output:?}");
+            assert!(output.ends_with("line\\nname\n"), "{flag}: {output:?}");
+        }
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn test_plain_and_verbose_list_quote_the_same_member_name() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.write_bytes(
+        "mixed-name.tar",
+        &archive_with_raw_members(&[(b"bad-\xff\\tab\t", b"x")]),
+    );
+
+    let plain = ucmd
+        .args(&["-tf", "mixed-name.tar"])
+        .env("LC_ALL", "C.UTF-8")
+        .succeeds()
+        .stdout_str()
+        .to_owned();
+    let verbose = new_ucmd!()
+        .args(&["-tvf", "mixed-name.tar"])
+        .env("LC_ALL", "C.UTF-8")
+        .current_dir(at.as_string())
+        .succeeds()
+        .stdout_str()
+        .to_owned();
+    assert_eq!(plain, "bad-\\377\\\\tab\\t\n");
+    assert!(verbose.ends_with(&plain), "verbose output: {verbose:?}");
+}
+
 #[test]
 fn test_extract_zstd_archive() {
     let (at, mut ucmd) = at_and_ucmd!();

@@ -481,6 +481,38 @@ fn test_list_truncated_zstd_archive_fails() {
 }
 
 #[test]
+fn test_extract_reports_member_with_parent_dir_and_continues() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.mkdir("out");
+
+    let mut tar_bytes = Vec::new();
+    {
+        let mut builder = TarRsBuilder::new(&mut tar_bytes);
+        for name in ["../item", "ok"] {
+            let mut header = TarRsHeader::new_gnu();
+            header.as_old_mut().name[..name.len()].copy_from_slice(name.as_bytes());
+            header.set_mode(0o644);
+            header.set_size(1);
+            header.set_cksum();
+            builder.append(&header, Cursor::new("x")).unwrap();
+        }
+        builder.finish().unwrap();
+    }
+    at.write_bytes("members.tar", &tar_bytes);
+
+    ucmd.args(&["-xf", "../members.tar"])
+        .current_dir(at.plus("out"))
+        .fails()
+        .code_is(2)
+        .stderr_contains("../item: Member name contains '..'")
+        .stderr_contains("Exiting with failure status due to previous errors")
+        .stderr_does_not_contain("not recoverable");
+
+    assert_eq!(at.read("out/ok"), "x");
+    assert!(!at.file_exists("item"));
+}
+
+#[test]
 fn test_extract_nonexistent_archive() {
     new_ucmd!()
         .args(&["-xf", "nonexistent.tar"])

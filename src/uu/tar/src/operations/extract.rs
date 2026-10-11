@@ -10,7 +10,7 @@ use std::io::Read;
 use std::io::{self, BufWriter, Write};
 use std::path::Path;
 use tar::Archive;
-use uucore::error::UResult;
+use uucore::error::{set_exit_code, UResult};
 
 /// Extract files from a tar archive
 ///
@@ -40,6 +40,10 @@ pub fn extract_archive(
         writeln!(out, "Extracting archive: {}", archive_path.display()).map_err(TarError::Io)?;
     }
 
+    // Members that were refused are reported as they are met; like GNU tar, the
+    // remaining members are still extracted and the exit status records the failure.
+    let mut refused_member = false;
+
     // Iterate through entries for verbose output and error handling
     for entry_result in archive.entries().map_err(TarError::CannotReadEntries)? {
         let mut entry = entry_result.map_err(TarError::CannotReadEntry)?;
@@ -54,14 +58,33 @@ pub fn extract_archive(
             writeln!(out, "{}", path.display()).map_err(TarError::Io)?;
         }
 
-        // Unpack the entry
-        entry.unpack_in(".").map_err(|e| TarError::CannotExtract {
+        // Unpack the entry. `unpack_in` skips, and returns false for, a member whose
+        // name contains a `..` component, as it would escape the target directory.
+        let unpacked = entry.unpack_in(".").map_err(|e| TarError::CannotExtract {
             path: path.clone(),
             source: e,
         })?;
+        if !unpacked {
+            out.flush().map_err(TarError::Io)?;
+            writeln!(
+                io::stderr(),
+                "tar: {}: Member name contains '..'",
+                path.display()
+            )
+            .map_err(TarError::Io)?;
+            refused_member = true;
+        }
     }
 
     out.flush().map_err(TarError::Io)?;
+    if refused_member {
+        writeln!(
+            io::stderr(),
+            "tar: Exiting with failure status due to previous errors"
+        )
+        .map_err(TarError::Io)?;
+        set_exit_code(2);
+    }
     Ok(())
 }
 

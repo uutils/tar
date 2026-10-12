@@ -145,6 +145,11 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
 
     let verbose = matches.get_flag("verbose");
     let allow_absolute = matches.get_flag("absolute-names");
+    let wildcards = matches.get_flag("wildcards");
+    let strip_components = matches
+        .get_one::<u32>("strip-components")
+        .copied()
+        .unwrap_or(0);
     let explicit_compression = if matches.get_flag("gzip") {
         Some(CompressionMode::Gzip)
     } else if matches.get_flag("zstd") {
@@ -159,13 +164,34 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
             uucore::error::USimpleError::new(64, "option requires an argument -- 'f'")
         })?;
 
+        let file_patterns: Vec<PathBuf> = matches
+            .get_many::<PathBuf>("files")
+            .map(|v| v.cloned().collect())
+            .unwrap_or_default();
+
         let compression = explicit_compression.unwrap_or(CompressionMode::Auto);
         return if archive_path == Path::new("-") {
-            operations::extract::extract_archive(io::stdin(), archive_path, verbose, compression)
+            operations::extract::extract_archive(
+                io::stdin(),
+                archive_path,
+                verbose,
+                compression,
+                &file_patterns,
+                wildcards,
+                strip_components,
+            )
         } else {
             let file =
                 File::open(archive_path).map_err(|e| TarError::from_io_error(e, archive_path))?;
-            operations::extract::extract_archive(file, archive_path, verbose, compression)
+            operations::extract::extract_archive(
+                file,
+                archive_path,
+                verbose,
+                compression,
+                &file_patterns,
+                wildcards,
+                strip_components,
+            )
         };
     }
 
@@ -227,13 +253,34 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
             uucore::error::USimpleError::new(64, "option requires an argument -- 'f'")
         })?;
 
+        let file_patterns: Vec<PathBuf> = matches
+            .get_many::<PathBuf>("files")
+            .map(|v| v.cloned().collect())
+            .unwrap_or_default();
+
         let compression = explicit_compression.unwrap_or(CompressionMode::Auto);
         return if archive_path == Path::new("-") {
-            operations::list::list_archive(io::stdin(), archive_path, verbose, compression)
+            operations::list::list_archive(
+                io::stdin(),
+                archive_path,
+                verbose,
+                compression,
+                &file_patterns,
+                wildcards,
+                strip_components,
+            )
         } else {
             let file =
                 File::open(archive_path).map_err(|e| TarError::from_io_error(e, archive_path))?;
-            operations::list::list_archive(file, archive_path, verbose, compression)
+            operations::list::list_archive(
+                file,
+                archive_path,
+                verbose,
+                compression,
+                &file_patterns,
+                wildcards,
+                strip_components,
+            )
         };
     }
 
@@ -278,6 +325,9 @@ pub fn uu_app() -> Command {
             arg!(-v --verbose "Verbosely list files processed"),
             // arg!(-h --dereference "Follow symlinks"),
             // arg!(-p --"preserve-permissions" "Extract information about file permissions"),
+            arg!(--wildcards "Use wildcards when matching file names"),
+            arg!(--"strip-components" <NUMBER> "Strip NUMBER leading components from file names")
+                .value_parser(clap::value_parser!(u32)),
             // Help
             arg!(--help "Print help information").action(ArgAction::Help),
             // Files to process

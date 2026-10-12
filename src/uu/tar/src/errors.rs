@@ -4,9 +4,10 @@
 // file that was distributed with this source code.
 
 use std::io;
+use std::io::Write;
 use std::path::PathBuf;
 use thiserror::Error;
-use uucore::error::UError;
+use uucore::error::{set_exit_code, UError, UResult};
 
 /// Error types for tar operations
 #[derive(Debug, Error)]
@@ -66,6 +67,14 @@ pub enum TarError {
     /// Refusing to write archive contents to terminal
     #[error("tar: Refusing to write archive contents to terminal (missing -f option?)")]
     RefuseWriteArchiveToTerminal,
+
+    /// A member name with a `..` component, which is not extracted
+    #[error("tar: {path}: Member name contains '..'")]
+    MemberNameContainsDotDot { path: PathBuf },
+
+    /// Errors that were reported earlier and recovered from
+    #[error("tar: Exiting with failure status due to previous errors")]
+    PreviousErrors,
 }
 
 impl TarError {
@@ -81,6 +90,22 @@ impl TarError {
             _ => TarError::Io(err),
         }
     }
+}
+
+/// Reports an error that tar recovers from: the operation carries on, and has to
+/// end with [`finish_after_previous_errors`].
+pub fn report_recoverable(err: &TarError) -> UResult<()> {
+    writeln!(io::stderr(), "{err}").map_err(TarError::Io)?;
+    Ok(())
+}
+
+/// Ends an operation that reported recoverable errors with exit status 2, like
+/// GNU tar. The status is set right before returning `Ok`, which is how `tarapp`
+/// tells these errors apart from fatal ones.
+pub fn finish_after_previous_errors() -> UResult<()> {
+    writeln!(io::stderr(), "{}", TarError::PreviousErrors).map_err(TarError::Io)?;
+    set_exit_code(2);
+    Ok(())
 }
 
 impl UError for TarError {

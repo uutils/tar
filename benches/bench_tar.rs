@@ -187,6 +187,8 @@ fn extract_archive_20_files(bencher: divan::Bencher) {
                 &archive_path,
                 false,
                 CompressionMode::None,
+                tar::BackupControl::None,
+                "~",
             )
             .unwrap();
         });

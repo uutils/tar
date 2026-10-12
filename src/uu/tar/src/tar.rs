@@ -8,7 +8,7 @@ pub mod errors;
 pub mod operations;
 
 use crate::errors::TarError;
-use clap::{arg, crate_version, ArgAction, Command};
+use clap::{arg, crate_version, Arg, ArgAction, Command};
 use std::fs::File;
 use std::io::{self, IsTerminal};
 use std::path::{Path, PathBuf};
@@ -24,6 +24,26 @@ pub enum CompressionMode {
     None,
     Gzip,
     Zstd,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum BackupControl {
+    None,
+    Simple,
+    Numbered,
+    Existing,
+}
+
+fn parse_backup_control(s: &str) -> Result<BackupControl, String> {
+    match s {
+        "none" | "off" => Ok(BackupControl::None),
+        "simple" | "never" => Ok(BackupControl::Simple),
+        "numbered" | "t" => Ok(BackupControl::Numbered),
+        "existing" | "nil" => Ok(BackupControl::Existing),
+        other => Err(format!(
+            "invalid backup type '{other}': must be one of none, off, simple, never, numbered, t, existing, nil"
+        )),
+    }
 }
 
 /// Determines whether a string looks like a POSIX tar keystring.
@@ -152,6 +172,14 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     } else {
         None
     };
+    let backup_control = matches
+        .get_one::<BackupControl>("backup")
+        .copied()
+        .unwrap_or(BackupControl::None);
+    let backup_suffix = matches
+        .get_one::<String>("suffix")
+        .cloned()
+        .unwrap_or_else(|| "~".to_string());
 
     // Handle extract operation
     if matches.get_flag("extract") {
@@ -161,11 +189,25 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
 
         let compression = explicit_compression.unwrap_or(CompressionMode::Auto);
         return if archive_path == Path::new("-") {
-            operations::extract::extract_archive(io::stdin(), archive_path, verbose, compression)
+            operations::extract::extract_archive(
+                io::stdin(),
+                archive_path,
+                verbose,
+                compression,
+                backup_control,
+                &backup_suffix,
+            )
         } else {
             let file =
                 File::open(archive_path).map_err(|e| TarError::from_io_error(e, archive_path))?;
-            operations::extract::extract_archive(file, archive_path, verbose, compression)
+            operations::extract::extract_archive(
+                file,
+                archive_path,
+                verbose,
+                compression,
+                backup_control,
+                &backup_suffix,
+            )
         };
     }
 
@@ -278,6 +320,20 @@ pub fn uu_app() -> Command {
             arg!(-v --verbose "Verbosely list files processed"),
             // arg!(-h --dereference "Follow symlinks"),
             // arg!(-p --"preserve-permissions" "Extract information about file permissions"),
+            // Backup options (extract only)
+            Arg::new("backup")
+                .long("backup")
+                .value_name("CONTROL")
+                .num_args(0..=1)
+                .require_equals(true)
+                .default_missing_value("existing")
+                .value_parser(parse_backup_control)
+                .help(
+                    "back up existing files before overwriting; \
+                     CONTROL may be: none/off, simple/never, numbered/t, existing/nil \
+                     (default: existing)",
+                ),
+            arg!(--suffix <SUFFIX> "override the usual backup suffix ('~')"),
             // Help
             arg!(--help "Print help information").action(ArgAction::Help),
             // Files to process

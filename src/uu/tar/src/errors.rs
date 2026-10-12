@@ -55,6 +55,10 @@ pub enum TarError {
     #[error("tar: Cannot extract '{path}': {source}")]
     CannotExtract { path: PathBuf, source: io::Error },
 
+    /// Cannot create backup of an existing destination file
+    #[error("tar: Cannot backup '{path}': {source}")]
+    CannotBackup { path: PathBuf, source: io::Error },
+
     /// General tar operation error
     #[error("tar: {0}")]
     TarOperationError(String),

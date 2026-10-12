@@ -4,13 +4,13 @@
 // file that was distributed with this source code.
 
 use crate::compression::open_archive_reader;
-use crate::errors::TarError;
+use crate::errors::{finish_after_previous_errors, report_recoverable, TarError};
 use crate::CompressionMode;
 use std::io::Read;
 use std::io::{self, BufWriter, Write};
 use std::path::Path;
 use tar::Archive;
-use uucore::error::{set_exit_code, UResult};
+use uucore::error::UResult;
 
 /// Extract files from a tar archive
 ///
@@ -66,24 +66,14 @@ pub fn extract_archive(
         })?;
         if !unpacked {
             out.flush().map_err(TarError::Io)?;
-            writeln!(
-                io::stderr(),
-                "tar: {}: Member name contains '..'",
-                path.display()
-            )
-            .map_err(TarError::Io)?;
+            report_recoverable(&TarError::MemberNameContainsDotDot { path: path.clone() })?;
             refused_member = true;
         }
     }
 
     out.flush().map_err(TarError::Io)?;
     if refused_member {
-        writeln!(
-            io::stderr(),
-            "tar: Exiting with failure status due to previous errors"
-        )
-        .map_err(TarError::Io)?;
-        set_exit_code(2);
+        return finish_after_previous_errors();
     }
     Ok(())
 }

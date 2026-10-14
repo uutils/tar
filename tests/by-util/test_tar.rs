@@ -1032,7 +1032,9 @@ fn test_list_verbose_owner_names_and_numeric_owner() {
         .current_dir(at.as_string())
         .succeeds()
         .stdout_move_str();
-    for line in listing.lines() {
+    let lines: Vec<&str> = listing.lines().collect();
+    assert_eq!(lines.len(), 2, "{listing}");
+    for line in lines {
         assert!(line.contains(" 1234/5678 "), "{line}");
     }
 }

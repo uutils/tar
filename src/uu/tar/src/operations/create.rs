@@ -22,6 +22,7 @@ use uucore::error::UResult;
 /// * `files` - Slice of file paths to add to the archive
 /// * `allow_absolute` - Allow absolute paths while creating archive
 /// * `verbose` - Whether to print verbose output during creation
+/// * `recursive` - Whether to add the contents of directories, not only the directories themselves
 ///
 /// # Errors
 ///
@@ -35,6 +36,7 @@ pub fn create_archive(
     files: &[&Path],
     allow_absolute: bool,
     verbose: bool,
+    recursive: bool,
     compression: CompressionMode,
 ) -> UResult<()> {
     let output = BufWriter::new(output);
@@ -56,18 +58,23 @@ pub fn create_archive(
         }
 
         if verbose {
-            print_verbose_tree(&mut status_output, path)?;
+            print_verbose_tree(&mut status_output, path, recursive)?;
         }
 
         let normalized_name = get_normalized_path(path, allow_absolute)?;
 
-        // If it's a directory, recursively add all contents
         if path.is_dir() {
-            builder.append_dir_all(normalized_name, path).map_err(|e| {
-                TarError::CannotAddDirectory {
-                    path: path.to_path_buf(),
-                    source: e,
-                }
+            if recursive {
+                // If it's a directory, recursively add all contents
+                builder.append_dir_all(normalized_name, path)
+            } else {
+                // --no-recursion: the directory entry only, named with a trailing
+                // slash like the top directory added by append_dir_all
+                builder.append_dir(normalized_name.join(""), path)
+            }
+            .map_err(|e| TarError::CannotAddDirectory {
+                path: path.to_path_buf(),
+                source: e,
             })?;
         } else {
             // For files, add them directly
@@ -90,8 +97,13 @@ pub fn create_archive(
     Ok(())
 }
 
-fn print_verbose_tree(status_output: &mut impl Write, path: &Path) -> UResult<()> {
-    let to_print = get_tree(path)?
+fn print_verbose_tree(status_output: &mut impl Write, path: &Path, recursive: bool) -> UResult<()> {
+    let tree = if recursive {
+        get_tree(path)?
+    } else {
+        vec![path.to_path_buf()]
+    };
+    let to_print = tree
         .iter()
         .map(|p| (p.is_dir(), p.display().to_string()))
         .map(|(is_dir, path)| {

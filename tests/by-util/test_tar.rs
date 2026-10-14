@@ -87,6 +87,37 @@ fn test_create_dir_verbose() {
 }
 
 #[test]
+fn test_extract_to_stdout() {
+    let (at, mut ucmd) = at_and_ucmd!();
+
+    at.mkdir("dir");
+    at.write("dir/a.txt", "first\n");
+    at.write("dir/b.txt", "second\n");
+    ucmd.args(&["-cf", "archive.tar", "dir/a.txt", "dir/b.txt"])
+        .succeeds();
+    at.remove("dir/a.txt");
+    at.remove("dir/b.txt");
+
+    new_ucmd!()
+        .arg("-xOf")
+        .arg(at.plus("archive.tar"))
+        .succeeds()
+        .stdout_only("first\nsecond\n");
+    assert!(!at.file_exists("dir/a.txt"));
+    assert!(!at.file_exists("dir/b.txt"));
+
+    // With -v, the member names go to stderr so they don't mix with the contents
+    new_ucmd!()
+        .arg("-xvf")
+        .arg(at.plus("archive.tar"))
+        .arg("--to-stdout")
+        .succeeds()
+        .stdout_is("first\nsecond\n")
+        .stderr_contains("dir/a.txt")
+        .stderr_contains("dir/b.txt");
+}
+
+#[test]
 fn test_create_single_file() {
     let (at, mut ucmd) = at_and_ucmd!();
 

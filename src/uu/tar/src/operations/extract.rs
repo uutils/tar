@@ -18,6 +18,8 @@ use uucore::error::UResult;
 ///
 /// * `archive_path` - Path to the tar archive to extract
 /// * `verbose` - Whether to print verbose output during extraction
+/// * `to_stdout` - Write the contents of regular files to standard output instead
+///   of creating them; verbose output then goes to standard error
 ///
 /// # Errors
 ///
@@ -29,11 +31,19 @@ pub fn extract_archive(
     input: impl Read,
     archive_path: &Path,
     verbose: bool,
+    to_stdout: bool,
     compression: CompressionMode,
 ) -> UResult<()> {
     let reader = open_archive_reader(input, compression)?;
     let mut archive = Archive::new(reader);
-    let mut out = BufWriter::new(io::stdout().lock());
+    // With --to-stdout the member contents own stdout, so status messages go to stderr.
+    let status: Box<dyn Write> = if to_stdout {
+        Box::new(io::stderr())
+    } else {
+        Box::new(io::stdout().lock())
+    };
+    let mut out = BufWriter::new(status);
+    let mut data = BufWriter::new(io::stdout().lock());
 
     // Extract to current directory
     if verbose {
@@ -58,6 +68,18 @@ pub fn extract_archive(
             writeln!(out, "{}", path.display()).map_err(TarError::Io)?;
         }
 
+        if to_stdout {
+            // Like GNU tar, only regular files have contents to write.
+            if entry.header().entry_type().is_file() {
+                out.flush().map_err(TarError::Io)?;
+                io::copy(&mut entry, &mut data).map_err(|e| TarError::CannotExtract {
+                    path: path.clone(),
+                    source: e,
+                })?;
+            }
+            continue;
+        }
+
         // Unpack the entry. `unpack_in` skips, and returns false for, a member whose
         // name contains a `..` component, as it would escape the target directory.
         let unpacked = entry.unpack_in(".").map_err(|e| TarError::CannotExtract {
@@ -72,6 +94,7 @@ pub fn extract_archive(
     }
 
     out.flush().map_err(TarError::Io)?;
+    data.flush().map_err(TarError::Io)?;
     if refused_member {
         return finish_after_previous_errors();
     }

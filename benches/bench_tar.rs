@@ -186,6 +186,7 @@ fn extract_archive_20_files(bencher: divan::Bencher) {
                 input,
                 &archive_path,
                 false,
+                false,
                 CompressionMode::None,
             )
             .unwrap();

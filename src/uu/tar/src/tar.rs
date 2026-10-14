@@ -145,6 +145,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
 
     let verbose = matches.get_flag("verbose");
     let allow_absolute = matches.get_flag("absolute-names");
+    let to_stdout = matches.get_flag("to-stdout");
     let explicit_compression = if matches.get_flag("gzip") {
         Some(CompressionMode::Gzip)
     } else if matches.get_flag("zstd") {
@@ -161,11 +162,23 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
 
         let compression = explicit_compression.unwrap_or(CompressionMode::Auto);
         return if archive_path == Path::new("-") {
-            operations::extract::extract_archive(io::stdin(), archive_path, verbose, compression)
+            operations::extract::extract_archive(
+                io::stdin(),
+                archive_path,
+                verbose,
+                to_stdout,
+                compression,
+            )
         } else {
             let file =
                 File::open(archive_path).map_err(|e| TarError::from_io_error(e, archive_path))?;
-            operations::extract::extract_archive(file, archive_path, verbose, compression)
+            operations::extract::extract_archive(
+                file,
+                archive_path,
+                verbose,
+                to_stdout,
+                compression,
+            )
         };
     }
 
@@ -276,6 +289,7 @@ pub fn uu_app() -> Command {
             arg!(--zstd "Filter through zstd").conflicts_with("gzip"),
             // Common options
             arg!(-v --verbose "Verbosely list files processed"),
+            arg!(-O --"to-stdout" "Extract files to standard output"),
             // arg!(-h --dereference "Follow symlinks"),
             // arg!(-p --"preserve-permissions" "Extract information about file permissions"),
             // Help

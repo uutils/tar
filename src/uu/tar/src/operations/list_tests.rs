@@ -45,3 +45,14 @@ fn test_list_archive_with_zstd_verbose() {
     let input = fs::File::open(&archive_path).unwrap();
     list_archive(input, &archive_path, true, false, CompressionMode::Zstd).unwrap();
 }
+
+#[test]
+fn test_owner_label() {
+    assert_eq!(owner_label(Some("alice"), Some(1000), false), "alice");
+    assert_eq!(owner_label(Some("alice"), Some(1000), true), "1000");
+    assert_eq!(owner_label(Some(""), Some(1000), false), "1000");
+    assert_eq!(owner_label(None, Some(1000), false), "1000");
+    // An unreadable id field is left empty, not shown as root.
+    assert_eq!(owner_label(None, None, false), "");
+    assert_eq!(owner_label(Some("alice"), None, true), "");
+}

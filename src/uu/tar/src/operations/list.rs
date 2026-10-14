@@ -43,11 +43,12 @@ pub fn list_archive(
 }
 
 /// The owner or group as GNU tar lists it: the name the header records, or the
-/// numeric id when there is no name or `--numeric-owner` asks for numbers.
+/// numeric id when there is no name or `--numeric-owner` asks for numbers. An
+/// id field that can't be read is left empty rather than shown as 0 (root).
 fn owner_label(name: Option<&str>, id: Option<u64>, numeric: bool) -> String {
     match name {
         Some(name) if !numeric && !name.is_empty() => name.to_owned(),
-        _ => id.unwrap_or(0).to_string(),
+        _ => id.map(|id| id.to_string()).unwrap_or_default(),
     }
 }
 

@@ -100,8 +100,6 @@ fn test_extract_keep_old_files() {
     at.write("a.txt", "already here");
     at.remove("b.txt");
 
-    // Like GNU tar: the existing file is an error and stays as it is, the
-    // other members are still extracted, and the run exits with status 2.
     ts.ucmd()
         .args(&["-xkf", "archive.tar"])
         .fails()
@@ -110,6 +108,73 @@ fn test_extract_keep_old_files() {
         .stderr_contains("Exiting with failure status due to previous errors");
     assert_eq!(at.read("a.txt"), "already here");
     assert_eq!(at.read("b.txt"), "also from archive");
+}
+
+#[test]
+fn test_extract_keep_old_files_existing_directory() {
+    let ts = TestScenario::new(util_name!());
+    let at = &ts.fixtures;
+
+    at.mkdir("d");
+    at.write("d/f.txt", "from archive");
+    ts.ucmd().args(&["-cf", "archive.tar", "d"]).succeeds();
+    at.remove("d/f.txt");
+
+    ts.ucmd()
+        .args(&["-xkf", "archive.tar"])
+        .succeeds()
+        .no_output();
+    assert_eq!(at.read("d/f.txt"), "from archive");
+}
+
+fn keep_old_members_tar(names: &[&str]) -> Vec<u8> {
+    let mut tar_bytes = Vec::new();
+    {
+        let mut builder = TarRsBuilder::new(&mut tar_bytes);
+        for name in names {
+            let mut header = TarRsHeader::new_gnu();
+            header.as_old_mut().name[..name.len()].copy_from_slice(name.as_bytes());
+            header.set_mode(0o644);
+            header.set_size(1);
+            header.set_cksum();
+            builder.append(&header, Cursor::new("x")).unwrap();
+        }
+        builder.finish().unwrap();
+    }
+    tar_bytes
+}
+
+#[test]
+fn test_extract_keep_old_files_checks_the_unpacked_path() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.mkdir("out");
+    at.write("out/kept.txt", "already here");
+    // A leading `/` is dropped when extracting, so `/kept.txt` lands on
+    // out/kept.txt, which -k must keep.
+    at.write_bytes("members.tar", &keep_old_members_tar(&["/kept.txt"]));
+
+    ucmd.args(&["-xkf", "../members.tar"])
+        .current_dir(at.plus("out"))
+        .fails()
+        .code_is(2)
+        .stderr_contains("tar: kept.txt: Cannot open: File exists");
+    assert_eq!(at.read("out/kept.txt"), "already here");
+}
+
+#[test]
+fn test_extract_keep_old_files_reports_parent_dir_member() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.mkdir("out");
+    at.write("item", "outside");
+    at.write_bytes("members.tar", &keep_old_members_tar(&["../item"]));
+
+    ucmd.args(&["-xkf", "../members.tar"])
+        .current_dir(at.plus("out"))
+        .fails()
+        .code_is(2)
+        .stderr_contains("../item: Member name contains '..'")
+        .stderr_does_not_contain("File exists");
+    assert_eq!(at.read("item"), "outside");
 }
 
 #[test]

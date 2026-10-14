@@ -9,7 +9,7 @@ use crate::CompressionMode;
 use std::fs;
 use std::io::Read;
 use std::io::{self, BufWriter, Write};
-use std::path::Path;
+use std::path::{Component, Path, PathBuf};
 use tar::Archive;
 use uucore::error::UResult;
 
@@ -63,12 +63,15 @@ pub fn extract_archive(
 
         // -k: like GNU tar, an existing file is an error and is left as it is;
         // an existing directory is fine.
-        if keep_old && !entry.header().entry_type().is_dir() && fs::symlink_metadata(&path).is_ok()
-        {
-            out.flush().map_err(TarError::Io)?;
-            report_recoverable(&TarError::FileExists { path: path.clone() })?;
-            refused_member = true;
-            continue;
+        if keep_old && !entry.header().entry_type().is_dir() {
+            if let Some(target) = unpack_target(&path) {
+                if fs::symlink_metadata(&target).is_ok() {
+                    out.flush().map_err(TarError::Io)?;
+                    report_recoverable(&TarError::FileExists { path: target })?;
+                    refused_member = true;
+                    continue;
+                }
+            }
         }
 
         // Unpack the entry. `unpack_in` skips, and returns false for, a member whose
@@ -89,6 +92,21 @@ pub fn extract_archive(
         return finish_after_previous_errors();
     }
     Ok(())
+}
+
+/// The path `unpack_in(".")` writes *path* to: leading `/` and `.` components
+/// are dropped. `None` when it writes nothing, for a member with a `..`
+/// component (refused) or no name left.
+fn unpack_target(path: &Path) -> Option<PathBuf> {
+    let mut target = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::Prefix(_) | Component::RootDir | Component::CurDir => {}
+            Component::ParentDir => return None,
+            Component::Normal(part) => target.push(part),
+        }
+    }
+    (!target.as_os_str().is_empty()).then_some(target)
 }
 
 #[cfg(test)]

@@ -117,6 +117,18 @@ fn test_extract_to_stdout() {
         .stderr_contains("dir/a.txt")
         .stderr_contains("dir/b.txt");
     assert!(!at.file_exists("dir/a.txt"));
+
+    // A directory member has no contents, and -O doesn't create it either
+    at.mkdir("only");
+    at.write("only/c.txt", "third\n");
+    ts.ucmd().args(&["-cf", "dir.tar", "only"]).succeeds();
+    at.remove("only/c.txt");
+    at.rmdir("only");
+    ts.ucmd()
+        .args(&["-xOf", "dir.tar"])
+        .succeeds()
+        .stdout_only("third\n");
+    assert!(!at.dir_exists("only"));
 }
 
 #[test]

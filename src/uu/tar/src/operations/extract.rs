@@ -43,7 +43,7 @@ pub fn extract_archive(
         Box::new(io::stdout().lock())
     };
     let mut out = BufWriter::new(status);
-    let mut data = BufWriter::new(io::stdout().lock());
+    let mut data = to_stdout.then(|| BufWriter::new(io::stdout().lock()));
 
     // Extract to current directory
     if verbose {
@@ -68,14 +68,16 @@ pub fn extract_archive(
             writeln!(out, "{}", path.display()).map_err(TarError::Io)?;
         }
 
-        if to_stdout {
+        if let Some(data) = data.as_mut() {
             // Like GNU tar, only regular files have contents to write.
             if entry.header().entry_type().is_file() {
                 out.flush().map_err(TarError::Io)?;
-                io::copy(&mut entry, &mut data).map_err(|e| TarError::CannotExtract {
+                io::copy(&mut entry, data).map_err(|e| TarError::CannotExtract {
                     path: path.clone(),
                     source: e,
                 })?;
+                // Keep each member's contents next to its name under -v.
+                data.flush().map_err(TarError::Io)?;
             }
             continue;
         }
@@ -94,7 +96,9 @@ pub fn extract_archive(
     }
 
     out.flush().map_err(TarError::Io)?;
-    data.flush().map_err(TarError::Io)?;
+    if let Some(data) = data.as_mut() {
+        data.flush().map_err(TarError::Io)?;
+    }
     if refused_member {
         return finish_after_previous_errors();
     }

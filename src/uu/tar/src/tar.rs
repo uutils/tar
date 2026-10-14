@@ -146,6 +146,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     let verbose = matches.get_flag("verbose");
     let allow_absolute = matches.get_flag("absolute-names");
     let to_stdout = matches.get_flag("to-stdout");
+    let recursive = !matches.get_flag("no-recursion");
     let explicit_compression = if matches.get_flag("gzip") {
         Some(CompressionMode::Gzip)
     } else if matches.get_flag("zstd") {
@@ -214,6 +215,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
                     &files,
                     allow_absolute,
                     verbose,
+                    recursive,
                     compression,
                 )
             }
@@ -229,6 +231,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
                 &files,
                 allow_absolute,
                 verbose,
+                recursive,
                 compression,
             )
         };
@@ -290,6 +293,7 @@ pub fn uu_app() -> Command {
             // Common options
             arg!(-v --verbose "Verbosely list files processed"),
             arg!(-O --"to-stdout" "Extract files to standard output"),
+            arg!(--"no-recursion" "Avoid descending automatically in directories"),
             // arg!(-h --dereference "Follow symlinks"),
             // arg!(-p --"preserve-permissions" "Extract information about file permissions"),
             // Help

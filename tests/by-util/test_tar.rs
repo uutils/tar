@@ -132,6 +132,36 @@ fn test_extract_to_stdout() {
 }
 
 #[test]
+fn test_create_no_recursion() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    let separator = path::MAIN_SEPARATOR;
+
+    at.mkdir("dir1");
+    at.mkdir(format!("dir1{separator}dir2"));
+    at.write(&format!("dir1{separator}file1.txt"), "test content 1");
+    at.write(
+        &format!("dir1{separator}dir2{separator}file2.txt"),
+        "test content 2",
+    );
+
+    ucmd.args(&[
+        "--no-recursion",
+        "-cvf",
+        "archive.tar",
+        "dir1",
+        &format!("dir1{separator}file1.txt"),
+    ])
+    .succeeds()
+    .stdout_is(format!("dir1{separator}\ndir1{separator}file1.txt\n"));
+
+    new_ucmd!()
+        .arg("-tf")
+        .arg(at.plus("archive.tar"))
+        .succeeds()
+        .stdout_is("dir1/\ndir1/file1.txt\n");
+}
+
+#[test]
 fn test_create_single_file() {
     let (at, mut ucmd) = at_and_ucmd!();
 

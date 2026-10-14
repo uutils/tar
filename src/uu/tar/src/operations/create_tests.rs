@@ -33,6 +33,7 @@ fn test_create_archive_flush_failed() {
         &[file_path.as_path()],
         false,
         false,
+        true,
         CompressionMode::None,
     );
     assert!(res.is_err());
@@ -53,6 +54,7 @@ fn test_create_archive_gzip_flush_failed() {
         &[file_path.as_path()],
         false,
         false,
+        true,
         CompressionMode::Gzip,
     );
     assert!(res.is_err());
@@ -70,6 +72,7 @@ fn test_create_archive_with_zstd() {
         &[Path::new("file.txt")],
         false,
         false,
+        true,
         CompressionMode::Zstd,
     )
     .unwrap();
@@ -93,6 +96,7 @@ fn test_create_archive_missing_file_fails() {
         &[missing_path.as_path()],
         false,
         false,
+        true,
         CompressionMode::Zstd,
     )
     .unwrap_err();

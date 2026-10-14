@@ -98,3 +98,21 @@ fn test_create_archive_missing_file_fails() {
     .unwrap_err();
     assert!(err.to_string().contains("missing.txt"));
 }
+
+#[test]
+fn test_clean_path() {
+    // Empty/relative to current dir cases
+    assert_eq!(clean_path(Path::new(".")), PathBuf::from("."));
+    assert_eq!(clean_path(Path::new("a/..")), PathBuf::from("."));
+    assert_eq!(clean_path(Path::new("a/b/../..")), PathBuf::from("."));
+    assert_eq!(clean_path(Path::new("")), PathBuf::from("."));
+
+    // Root/Prefix limit cases (cannot go above root)
+    assert_eq!(clean_path(Path::new("/..")), PathBuf::from("/"));
+    assert_eq!(clean_path(Path::new("/a/../../b")), PathBuf::from("/b"));
+
+    // Parent dir preservation cases
+    assert_eq!(clean_path(Path::new("../..")), PathBuf::from("../.."));
+    assert_eq!(clean_path(Path::new("../../a")), PathBuf::from("../../a"));
+    assert_eq!(clean_path(Path::new("a/../../b")), PathBuf::from("../b"));
+}

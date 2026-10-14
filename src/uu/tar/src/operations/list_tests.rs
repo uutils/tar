@@ -33,7 +33,7 @@ fn test_list_archive_with_zstd_non_verbose() {
     write_zstd_tar(&archive_path);
 
     let input = fs::File::open(&archive_path).unwrap();
-    list_archive(input, &archive_path, false, CompressionMode::Zstd).unwrap();
+    list_archive(input, &archive_path, false, false, CompressionMode::Zstd).unwrap();
 }
 
 #[test]
@@ -43,5 +43,5 @@ fn test_list_archive_with_zstd_verbose() {
     write_zstd_tar(&archive_path);
 
     let input = fs::File::open(&archive_path).unwrap();
-    list_archive(input, &archive_path, true, CompressionMode::Zstd).unwrap();
+    list_archive(input, &archive_path, true, false, CompressionMode::Zstd).unwrap();
 }

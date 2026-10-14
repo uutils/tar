@@ -991,6 +991,53 @@ fn test_list_verbose() {
 }
 
 #[test]
+fn test_list_verbose_owner_names_and_numeric_owner() {
+    let at = &at_and_ucmd!().0;
+
+    let mut tar_bytes = Vec::new();
+    {
+        let mut builder = TarRsBuilder::new(&mut tar_bytes);
+        for (path, names) in [("named.txt", true), ("unnamed.txt", false)] {
+            let mut header = TarRsHeader::new_gnu();
+            header.set_mode(0o644);
+            header.set_size("content".len() as u64);
+            header.set_uid(1234);
+            header.set_gid(5678);
+            if names {
+                header.set_username("alice").unwrap();
+                header.set_groupname("staff").unwrap();
+            }
+            header.set_cksum();
+            builder
+                .append_data(&mut header, path, Cursor::new("content"))
+                .unwrap();
+        }
+        builder.finish().unwrap();
+    }
+    at.write_bytes("owners.tar", &tar_bytes);
+
+    // Like GNU tar: the recorded names, or the ids when the header has none.
+    let listing = new_ucmd!()
+        .args(&["-tvf", "owners.tar"])
+        .current_dir(at.as_string())
+        .succeeds()
+        .stdout_move_str();
+    let lines: Vec<&str> = listing.lines().collect();
+    assert!(lines[0].contains(" alice/staff ") && lines[0].ends_with("named.txt"));
+    assert!(lines[1].contains(" 1234/5678 ") && lines[1].ends_with("unnamed.txt"));
+
+    // --numeric-owner always lists the ids.
+    let listing = new_ucmd!()
+        .args(&["--numeric-owner", "-tvf", "owners.tar"])
+        .current_dir(at.as_string())
+        .succeeds()
+        .stdout_move_str();
+    for line in listing.lines() {
+        assert!(line.contains(" 1234/5678 "), "{line}");
+    }
+}
+
+#[test]
 fn test_list_nonexistent_archive() {
     new_ucmd!()
         .args(&["-tf", "nonexistent.tar"])

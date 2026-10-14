@@ -146,7 +146,8 @@ fn list_archive_50_files(bencher: divan::Bencher) {
 
     bencher.bench_local(|| {
         let input = File::open(&archive_path).unwrap();
-        operations::list::list_archive(input, &archive_path, false, CompressionMode::None).unwrap();
+        operations::list::list_archive(input, &archive_path, false, false, CompressionMode::None)
+            .unwrap();
     });
 }
 
@@ -160,7 +161,8 @@ fn list_archive_verbose_50_files(bencher: divan::Bencher) {
 
     bencher.bench_local(|| {
         let input = File::open(&archive_path).unwrap();
-        operations::list::list_archive(input, &archive_path, true, CompressionMode::None).unwrap();
+        operations::list::list_archive(input, &archive_path, true, false, CompressionMode::None)
+            .unwrap();
     });
 }
 

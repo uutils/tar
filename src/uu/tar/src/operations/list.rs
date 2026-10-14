@@ -19,6 +19,7 @@ pub fn list_archive(
     input: impl Read,
     _archive_path: &Path,
     verbose: bool,
+    numeric_owner: bool,
     compression: CompressionMode,
 ) -> UResult<()> {
     let reader = open_archive_reader(input, compression)?;
@@ -29,7 +30,7 @@ pub fn list_archive(
         let entry = entry_result.map_err(TarError::CannotReadEntry)?;
 
         if verbose {
-            let formatted = format_verbose_entry(&entry)?;
+            let formatted = format_verbose_entry(&entry, numeric_owner)?;
             writeln!(out, "{formatted}").map_err(TarError::Io)?;
         } else {
             let path = entry.path().map_err(TarError::CannotReadEntryPath)?;
@@ -41,24 +42,34 @@ pub fn list_archive(
     Ok(())
 }
 
-fn format_verbose_entry<R: Read>(entry: &tar::Entry<'_, R>) -> Result<String, TarError> {
+/// The owner or group as GNU tar lists it: the name the header records, or the
+/// numeric id when there is no name or `--numeric-owner` asks for numbers.
+fn owner_label(name: Option<&str>, id: Option<u64>, numeric: bool) -> String {
+    match name {
+        Some(name) if !numeric && !name.is_empty() => name.to_owned(),
+        _ => id.unwrap_or(0).to_string(),
+    }
+}
+
+fn format_verbose_entry<R: Read>(
+    entry: &tar::Entry<'_, R>,
+    numeric_owner: bool,
+) -> Result<String, TarError> {
     let (mode, entry_type, owner, group, size, mtime) = {
         let header = entry.header();
         (
             header.mode().unwrap_or(0),
             header.entry_type(),
-            header
-                .username()
-                .ok()
-                .flatten()
-                .unwrap_or_default()
-                .to_owned(),
-            header
-                .groupname()
-                .ok()
-                .flatten()
-                .unwrap_or_default()
-                .to_owned(),
+            owner_label(
+                header.username().ok().flatten(),
+                header.uid().ok(),
+                numeric_owner,
+            ),
+            owner_label(
+                header.groupname().ok().flatten(),
+                header.gid().ok(),
+                numeric_owner,
+            ),
             header.size().unwrap_or(0),
             header.mtime().unwrap_or(0),
         )

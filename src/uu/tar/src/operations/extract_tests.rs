@@ -31,7 +31,7 @@ fn test_extract_archive_with_zstd() {
 
     let _guard = crate::operations::TestDirGuard::enter(tempdir.path());
     let input = fs::File::open(&archive_path).unwrap();
-    let result = extract_archive(input, &archive_path, true, CompressionMode::Zstd);
+    let result = extract_archive(input, &archive_path, true, false, CompressionMode::Zstd);
 
     result.unwrap();
     assert_eq!(

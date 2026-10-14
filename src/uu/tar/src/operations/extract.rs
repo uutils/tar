@@ -6,6 +6,7 @@
 use crate::compression::open_archive_reader;
 use crate::errors::{finish_after_previous_errors, report_recoverable, TarError};
 use crate::CompressionMode;
+use std::fs;
 use std::io::Read;
 use std::io::{self, BufWriter, Write};
 use std::path::Path;
@@ -18,6 +19,7 @@ use uucore::error::UResult;
 ///
 /// * `archive_path` - Path to the tar archive to extract
 /// * `verbose` - Whether to print verbose output during extraction
+/// * `keep_old` - Don't replace existing files; each one is reported as an error
 ///
 /// # Errors
 ///
@@ -29,6 +31,7 @@ pub fn extract_archive(
     input: impl Read,
     archive_path: &Path,
     verbose: bool,
+    keep_old: bool,
     compression: CompressionMode,
 ) -> UResult<()> {
     let reader = open_archive_reader(input, compression)?;
@@ -56,6 +59,16 @@ pub fn extract_archive(
 
         if verbose {
             writeln!(out, "{}", path.display()).map_err(TarError::Io)?;
+        }
+
+        // -k: like GNU tar, an existing file is an error and is left as it is;
+        // an existing directory is fine.
+        if keep_old && !entry.header().entry_type().is_dir() && fs::symlink_metadata(&path).is_ok()
+        {
+            out.flush().map_err(TarError::Io)?;
+            report_recoverable(&TarError::FileExists { path: path.clone() })?;
+            refused_member = true;
+            continue;
         }
 
         // Unpack the entry. `unpack_in` skips, and returns false for, a member whose

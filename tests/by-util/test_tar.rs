@@ -7,7 +7,8 @@ use std::io::{Cursor, Read, Write};
 use std::path::{self, PathBuf};
 
 use tar_rs_crate::{Archive as TarRsArchive, Builder as TarRsBuilder, Header as TarRsHeader};
-use uutests::{at_and_ucmd, new_ucmd};
+use uutests::util::TestScenario;
+use uutests::{at_and_ucmd, new_ucmd, util_name};
 
 /// Size of a single tar block in bytes (per POSIX specification).
 // TODO: This should be exported from the tar crate instead of being redefined here.
@@ -84,6 +85,31 @@ fn test_create_dir_verbose() {
         .stdout_contains(dir2_path)
         .stdout_contains(file1_path)
         .stdout_contains(file2_path);
+}
+
+#[test]
+fn test_extract_keep_old_files() {
+    let ts = TestScenario::new(util_name!());
+    let at = &ts.fixtures;
+
+    at.write("a.txt", "from archive");
+    at.write("b.txt", "also from archive");
+    ts.ucmd()
+        .args(&["-cf", "archive.tar", "a.txt", "b.txt"])
+        .succeeds();
+    at.write("a.txt", "already here");
+    at.remove("b.txt");
+
+    // Like GNU tar: the existing file is an error and stays as it is, the
+    // other members are still extracted, and the run exits with status 2.
+    ts.ucmd()
+        .args(&["-xkf", "archive.tar"])
+        .fails()
+        .code_is(2)
+        .stderr_contains("tar: a.txt: Cannot open: File exists")
+        .stderr_contains("Exiting with failure status due to previous errors");
+    assert_eq!(at.read("a.txt"), "already here");
+    assert_eq!(at.read("b.txt"), "also from archive");
 }
 
 #[test]

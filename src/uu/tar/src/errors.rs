@@ -72,6 +72,10 @@ pub enum TarError {
     #[error("tar: {path}: Member name contains '..'")]
     MemberNameContainsDotDot { path: PathBuf },
 
+    /// A member that `-k` keeps from replacing an existing file
+    #[error("tar: {path}: Cannot open: File exists")]
+    FileExists { path: PathBuf },
+
     /// Errors that were reported earlier and recovered from
     #[error("tar: Exiting with failure status due to previous errors")]
     PreviousErrors,

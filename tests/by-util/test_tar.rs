@@ -1021,6 +1021,73 @@ fn test_list_verbose() {
 }
 
 #[test]
+fn test_list_verbose_links() {
+    let at = &at_and_ucmd!().0;
+
+    let mut tar_bytes = Vec::new();
+    {
+        let mut builder = TarRsBuilder::new(&mut tar_bytes);
+        let mut header = TarRsHeader::new_gnu();
+        header.set_mode(0o644);
+        header.set_size(5);
+        header.set_cksum();
+        builder
+            .append_data(&mut header, "a.txt", Cursor::new("hello"))
+            .unwrap();
+
+        let mut header = TarRsHeader::new_gnu();
+        header.set_entry_type(tar_rs_crate::EntryType::Symlink);
+        header.set_mode(0o777);
+        header.set_size(0);
+        builder.append_link(&mut header, "sym", "a.txt").unwrap();
+
+        let mut header = TarRsHeader::new_gnu();
+        header.set_entry_type(tar_rs_crate::EntryType::Link);
+        header.set_mode(0o644);
+        header.set_size(0);
+        builder.append_link(&mut header, "hard", "a.txt").unwrap();
+        builder.finish().unwrap();
+    }
+    at.write_bytes("links.tar", &tar_bytes);
+
+    new_ucmd!()
+        .args(&["-tvf", "links.tar"])
+        .current_dir(at.as_string())
+        .succeeds()
+        .stdout_contains("\nlrwxrwxrwx ")
+        .stdout_contains(" sym -> a.txt\n")
+        .stdout_contains("\nhrw-r--r-- ")
+        .stdout_contains(" hard link to a.txt\n");
+}
+
+#[test]
+fn test_list_verbose_uses_local_time() {
+    let at = &at_and_ucmd!().0;
+
+    let mut tar_bytes = Vec::new();
+    {
+        let mut builder = TarRsBuilder::new(&mut tar_bytes);
+        let mut header = TarRsHeader::new_gnu();
+        header.set_mode(0o644);
+        header.set_size(0);
+        header.set_mtime(0);
+        header.set_cksum();
+        builder
+            .append_data(&mut header, "epoch.txt", Cursor::new(""))
+            .unwrap();
+        builder.finish().unwrap();
+    }
+    at.write_bytes("epoch.tar", &tar_bytes);
+
+    new_ucmd!()
+        .env("TZ", "Asia/Kolkata")
+        .args(&["-tvf", "epoch.tar"])
+        .current_dir(at.as_string())
+        .succeeds()
+        .stdout_contains("1970-01-01 05:30 epoch.txt");
+}
+
+#[test]
 fn test_list_nonexistent_archive() {
     new_ucmd!()
         .args(&["-tf", "nonexistent.tar"])

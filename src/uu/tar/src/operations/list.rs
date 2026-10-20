@@ -6,7 +6,7 @@
 use crate::compression::open_archive_reader;
 use crate::errors::TarError;
 use crate::CompressionMode;
-use chrono::{TimeZone, Utc};
+use chrono::{Local, TimeZone};
 use std::io::Read;
 use std::io::{self, BufWriter, Write};
 use std::path::Path;
@@ -69,6 +69,7 @@ fn format_verbose_entry<R: Read>(entry: &tar::Entry<'_, R>) -> Result<String, Ta
     let type_char = match entry_type {
         tar::EntryType::Directory => 'd',
         tar::EntryType::Symlink => 'l',
+        tar::EntryType::Link => 'h',
         tar::EntryType::Char => 'c',
         tar::EntryType::Block => 'b',
         tar::EntryType::Fifo => 'p',
@@ -77,14 +78,25 @@ fn format_verbose_entry<R: Read>(entry: &tar::Entry<'_, R>) -> Result<String, Ta
     let perm_str = display_permissions_unix(mode, false);
     let permissions = format!("{type_char}{perm_str}");
 
-    let dt: chrono::DateTime<Utc> = Utc
+    // GNU tar shows times in the local time zone
+    let dt: chrono::DateTime<Local> = Local
         .timestamp_opt(mtime as i64, 0)
         .single()
-        .unwrap_or_else(Utc::now);
+        .unwrap_or_else(Local::now);
     let date_str = dt.format("%Y-%m-%d %H:%M");
 
+    let link = match entry_type {
+        tar::EntryType::Symlink | tar::EntryType::Link => entry.link_name().ok().flatten(),
+        _ => None,
+    };
+    let link_str = match (entry_type, link) {
+        (tar::EntryType::Symlink, Some(target)) => format!(" -> {}", target.display()),
+        (tar::EntryType::Link, Some(target)) => format!(" link to {}", target.display()),
+        _ => String::new(),
+    };
+
     Ok(format!(
-        "{permissions} {owner}/{group} {size:>8} {date_str} {}",
+        "{permissions} {owner}/{group} {size:>8} {date_str} {}{link_str}",
         path.display()
     ))
 }

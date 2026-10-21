@@ -1082,7 +1082,7 @@ fn test_list_verbose_uses_local_time() {
     at.write_bytes("epoch.tar", &tar_bytes);
 
     new_ucmd!()
-        .env("TZ", "Asia/Kolkata")
+        .env("TZ", "IST-5:30")
         .args(&["-tvf", "epoch.tar"])
         .current_dir(at.as_string())
         .succeeds()

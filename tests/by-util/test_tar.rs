@@ -543,6 +543,45 @@ fn test_extract_reports_member_with_parent_dir_and_continues() {
 }
 
 #[test]
+#[cfg(unix)]
+fn test_extract_read_only_directory() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.mkdir("out");
+
+    let mut tar_bytes = Vec::new();
+    {
+        let mut builder = TarRsBuilder::new(&mut tar_bytes);
+        let mut header = TarRsHeader::new_gnu();
+        header.set_entry_type(tar_rs_crate::EntryType::Directory);
+        header.set_mode(0o555);
+        header.set_size(0);
+        builder
+            .append_data(&mut header, "locked/", std::io::empty())
+            .unwrap();
+        let mut header = TarRsHeader::new_gnu();
+        header.set_mode(0o644);
+        header.set_size(1);
+        builder
+            .append_data(&mut header, "locked/f", Cursor::new("x"))
+            .unwrap();
+        builder.finish().unwrap();
+    }
+    at.write_bytes("locked.tar", &tar_bytes);
+
+    ucmd.args(&["-xf", "../locked.tar"])
+        .current_dir(at.plus("out"))
+        .succeeds();
+
+    assert_eq!(at.read("out/locked/f"), "x");
+    let mode = at.metadata("out/locked").permissions().mode();
+    // Restore write permission so the test directory can be cleaned up
+    at.set_mode("out/locked", 0o755);
+    assert_eq!(mode & 0o777, 0o555);
+}
+
+#[test]
 fn test_extract_nonexistent_archive() {
     new_ucmd!()
         .args(&["-xf", "nonexistent.tar"])

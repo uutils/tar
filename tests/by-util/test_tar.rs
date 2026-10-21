@@ -626,6 +626,44 @@ fn test_extract_nested_read_only_directories() {
 }
 
 #[test]
+fn test_extract_keeps_directory_mtime() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.mkdir("out");
+
+    let mut tar_bytes = Vec::new();
+    {
+        let mut builder = TarRsBuilder::new(&mut tar_bytes);
+        let mut header = TarRsHeader::new_gnu();
+        header.set_entry_type(tar_rs_crate::EntryType::Directory);
+        header.set_mode(0o755);
+        header.set_mtime(1_000_000_000);
+        header.set_size(0);
+        builder
+            .append_data(&mut header, "dir/", std::io::empty())
+            .unwrap();
+        let mut header = TarRsHeader::new_gnu();
+        header.set_mode(0o644);
+        header.set_mtime(1_000_000_000);
+        header.set_size(1);
+        builder
+            .append_data(&mut header, "dir/f", Cursor::new("x"))
+            .unwrap();
+        builder.finish().unwrap();
+    }
+    at.write_bytes("dir.tar", &tar_bytes);
+
+    ucmd.args(&["-xf", "../dir.tar"])
+        .current_dir(at.plus("out"))
+        .succeeds();
+
+    let mtime = at.metadata("out/dir").modified().unwrap();
+    assert_eq!(
+        mtime,
+        std::time::UNIX_EPOCH + std::time::Duration::from_secs(1_000_000_000)
+    );
+}
+
+#[test]
 fn test_extract_nonexistent_archive() {
     new_ucmd!()
         .args(&["-xf", "nonexistent.tar"])

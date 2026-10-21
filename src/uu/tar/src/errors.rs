@@ -68,6 +68,10 @@ pub enum TarError {
     #[error("tar: Refusing to write archive contents to terminal (missing -f option?)")]
     RefuseWriteArchiveToTerminal,
 
+    /// The modification time of an extracted directory could not be set
+    #[error("tar: {path}: Cannot utime: {source}")]
+    CannotUtime { path: PathBuf, source: io::Error },
+
     /// A member name with a `..` component, which is not extracted
     #[error("tar: {path}: Member name contains '..'")]
     MemberNameContainsDotDot { path: PathBuf },

@@ -85,11 +85,7 @@ fn format_verbose_entry<R: Read>(entry: &tar::Entry<'_, R>) -> Result<String, Ta
         .unwrap_or_else(Local::now);
     let date_str = dt.format("%Y-%m-%d %H:%M");
 
-    let link = match entry_type {
-        tar::EntryType::Symlink | tar::EntryType::Link => entry.link_name().ok().flatten(),
-        _ => None,
-    };
-    let link_str = match (entry_type, link) {
+    let link_str = match (entry_type, entry.link_name().ok().flatten()) {
         (tar::EntryType::Symlink, Some(target)) => format!(" -> {}", target.display()),
         (tar::EntryType::Link, Some(target)) => format!(" link to {}", target.display()),
         _ => String::new(),

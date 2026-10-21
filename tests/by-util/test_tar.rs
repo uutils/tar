@@ -1061,6 +1061,8 @@ fn test_list_verbose_links() {
 }
 
 #[test]
+// chrono reads TZ on Unix only
+#[cfg(unix)]
 fn test_list_verbose_uses_local_time() {
     let at = &at_and_ucmd!().0;
 

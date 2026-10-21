@@ -61,7 +61,7 @@ tar = { optional = true, version = "0.0.1", package = "uu_tar", path = "src/uu/t
 
 [dev-dependencies]
 chrono = { workspace = true }
-divan = { version = "5.0.0", package = "codspeed-divan-compat" }
+divan = { version = "6.0.0", package = "codspeed-divan-compat" }
 flate2 = { workspace = true }
 pretty_assertions = "1"
 rand = { workspace = true }

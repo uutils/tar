@@ -6,6 +6,7 @@
 use crate::compression::open_archive_reader;
 use crate::errors::{finish_after_previous_errors, report_recoverable, TarError};
 use crate::CompressionMode;
+use std::collections::HashSet;
 use std::io::Read;
 use std::io::{self, BufWriter, Write};
 use std::path::{Component, Path, PathBuf};
@@ -48,6 +49,8 @@ pub fn extract_archive(
     // are extracted, or a read-only directory could not be filled.
     let mut directories = Vec::new();
 
+    let mut warned_slashes = HashSet::new();
+
     // Iterate through entries for verbose output and error handling
     for entry_result in archive.entries().map_err(TarError::CannotReadEntries)? {
         let mut entry = entry_result.map_err(TarError::CannotReadEntry)?;
@@ -58,6 +61,7 @@ pub fn extract_archive(
             .map_err(TarError::CannotReadEntryPath)?
             .to_path_buf();
 
+        warn_leading_slashes(&path, &mut warned_slashes, &mut out)?;
         if verbose {
             writeln!(out, "{}", path.display()).map_err(TarError::Io)?;
         }
@@ -82,6 +86,31 @@ pub fn extract_archive(
     out.flush().map_err(TarError::Io)?;
     if refused_member {
         return finish_after_previous_errors();
+    }
+    Ok(())
+}
+
+/// `unpack_in` drops leading slashes from a member name. Like GNU tar, say so
+/// once for each different number of them.
+fn warn_leading_slashes(
+    path: &Path,
+    warned: &mut HashSet<usize>,
+    out: &mut impl Write,
+) -> UResult<()> {
+    let slashes = path
+        .as_os_str()
+        .as_encoded_bytes()
+        .iter()
+        .take_while(|&&b| b == b'/')
+        .count();
+    if slashes > 0 && warned.insert(slashes) {
+        out.flush().map_err(TarError::Io)?;
+        writeln!(
+            io::stderr(),
+            "tar: Removing leading `{}' from member names",
+            "/".repeat(slashes)
+        )
+        .map_err(TarError::Io)?;
     }
     Ok(())
 }

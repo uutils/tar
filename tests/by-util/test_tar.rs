@@ -511,6 +511,38 @@ fn test_list_truncated_zstd_archive_fails() {
 }
 
 #[test]
+fn test_extract_warns_about_leading_slashes_once_per_prefix() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.mkdir("out");
+
+    let mut tar_bytes = Vec::new();
+    {
+        let mut builder = TarRsBuilder::new(&mut tar_bytes);
+        for name in ["/a/one", "//a/two", "rel", "/a/three"] {
+            let mut header = TarRsHeader::new_gnu();
+            header.as_old_mut().name[..name.len()].copy_from_slice(name.as_bytes());
+            header.set_mode(0o644);
+            header.set_size(1);
+            header.set_cksum();
+            builder.append(&header, Cursor::new("x")).unwrap();
+        }
+        builder.finish().unwrap();
+    }
+    at.write_bytes("abs.tar", &tar_bytes);
+
+    ucmd.args(&["-xf", "../abs.tar"])
+        .current_dir(at.plus("out"))
+        .succeeds()
+        .stderr_is(
+            "tar: Removing leading `/' from member names\n\
+             tar: Removing leading `//' from member names\n",
+        );
+    assert_eq!(at.read("out/a/one"), "x");
+    assert_eq!(at.read("out/a/two"), "x");
+    assert_eq!(at.read("out/a/three"), "x");
+}
+
+#[test]
 fn test_extract_reports_member_with_parent_dir_and_continues() {
     let (at, mut ucmd) = at_and_ucmd!();
     at.mkdir("out");

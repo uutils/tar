@@ -669,6 +669,16 @@ fn test_extract_nonexistent_archive() {
 }
 
 #[test]
+fn test_error_message_has_one_prefix() {
+    let result = new_ucmd!().args(&["-tf", "nonexistent.tar"]).fails();
+    let first = result.stderr_str().lines().next().unwrap();
+    assert_eq!(
+        first.split_once(": ").unwrap().1,
+        "nonexistent.tar: Cannot open: No such file or directory"
+    );
+}
+
+#[test]
 fn test_extract_directory_structure() {
     let (at, mut ucmd) = at_and_ucmd!();
 

@@ -29,10 +29,10 @@ if test ! -f "${path_GNU}/README"; then
     echo "Extracting GNU tar..."
     mkdir -p "${path_GNU}"
     cd "${path_GNU}"
-    curl -fsSL https://ftpmirror.gnu.org/tar/tar-1.35.tar.xz -o gnu-tar.tar.xz
-    echo e1a200d21f433cd7d917dd979db16919a9167056ae62cf7d038a6118e56b2fe419cd4a396eee66f1f4dc13a8dc380e23f6ffd7ee0ca84e5dd9ad9411f60e002c  gnu-tar.tar.xz \
-     | b2sum --check
-    tar xJf gnu-tar.tar.xz --strip-components=1
+    b2=e1a200d21f433cd7d917dd979db16919a9167056ae62cf7d038a6118e56b2fe419cd4a396eee66f1f4dc13a8dc380e23f6ffd7ee0ca84e5dd9ad9411f60e002c
+    echo $b2  /tmp/gnu-tar.tar.xz | b2sum --check 2>/dev/null || \
+      { curl -fsSL https://ftpmirror.gnu.org/tar/tar-1.35.tar.xz -o /tmp/gnu-tar.tar.xz && echo $b2  /tmp/gnu-tar.tar.xz | b2sum --check; }
+    tar xJf /tmp/gnu-tar.tar.xz --strip-components=1
 fi
 
 cd "${path_GNU}"

@@ -62,7 +62,8 @@ pub fn extract_archive(
             writeln!(out, "{}", path.display()).map_err(TarError::Io)?;
         }
 
-        // A refused `..` member is still reported in archive order
+        // Directories with a `..` component are not deferred, so they are
+        // refused in archive order
         if entry.header().entry_type() == EntryType::Directory
             && !path.components().any(|c| c == Component::ParentDir)
         {

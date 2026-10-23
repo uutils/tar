@@ -6,6 +6,7 @@
 use crate::compression::open_archive_reader;
 use crate::errors::{finish_after_previous_errors, report_recoverable, TarError};
 use crate::CompressionMode;
+use filetime::FileTime;
 use std::io::Read;
 use std::io::{self, BufWriter, Write};
 use std::path::{Component, Path, PathBuf};
@@ -76,7 +77,17 @@ pub fn extract_archive(
     // Children before parents, so a read-only parent is restored last
     directories.sort_by(|a, b| b.0.cmp(&a.0));
     for (path, mut entry) in directories {
-        refused_member |= unpack_entry(&mut entry, path, &mut out)?;
+        let mtime = entry.header().mtime().ok();
+        let refused = unpack_entry(&mut entry, path.clone(), &mut out)?;
+        refused_member |= refused;
+        // The archive's mtime, as GNU tar restores it (tar-rs only does it for files)
+        if let (false, Some(mtime)) = (refused, mtime) {
+            if let Err(e) = set_directory_mtime(&path, mtime) {
+                out.flush().map_err(TarError::Io)?;
+                report_recoverable(&TarError::CannotUtime { path, source: e })?;
+                refused_member = true;
+            }
+        }
     }
 
     out.flush().map_err(TarError::Io)?;
@@ -104,6 +115,22 @@ fn unpack_entry<R: Read>(
         report_recoverable(&TarError::MemberNameContainsDotDot { path })?;
     }
     Ok(!unpacked)
+}
+
+/// Sets the mtime of the directory `unpack_in` extracted for the member `path`.
+fn set_directory_mtime(path: &Path, mtime: u64) -> io::Result<()> {
+    // `unpack_in` drops the root, `.` and prefix components of member names
+    let dst: PathBuf = path
+        .components()
+        .filter(|c| matches!(c, Component::Normal(_)))
+        .collect();
+    let dst = if dst.as_os_str().is_empty() {
+        PathBuf::from(".")
+    } else {
+        dst
+    };
+    // Negative times come back from tar-rs as large u64 values; cast like it does
+    filetime::set_file_mtime(&dst, FileTime::from_unix_time(mtime as i64, 0))
 }
 
 #[cfg(test)]

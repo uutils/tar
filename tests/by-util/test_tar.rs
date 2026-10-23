@@ -538,6 +538,8 @@ fn test_extract_warns_about_leading_slashes_once_per_prefix() {
              tar: Removing leading `//' from member names\n",
         );
     assert_eq!(at.read("out/a/one"), "x");
+    // On Windows `//a/two` is a UNC path, which has no relative part to extract.
+    #[cfg(unix)]
     assert_eq!(at.read("out/a/two"), "x");
     assert_eq!(at.read("out/a/three"), "x");
 }

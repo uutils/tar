@@ -17,63 +17,63 @@ pub enum TarError {
     Io(#[from] io::Error),
 
     /// Cannot read entries from archive
-    #[error("tar: Cannot read archive entries: {0}")]
+    #[error("Cannot read archive entries: {0}")]
     CannotReadEntries(io::Error),
 
     /// Cannot read an individual archive entry
-    #[error("tar: Cannot read archive entry: {0}")]
+    #[error("Cannot read archive entry: {0}")]
     CannotReadEntry(io::Error),
 
     /// Cannot read the path of an archive entry
-    #[error("tar: Cannot read entry path: {0}")]
+    #[error("Cannot read entry path: {0}")]
     CannotReadEntryPath(io::Error),
 
     /// Invalid archive format or unsupported compression stream
-    #[error("tar: {0}")]
+    #[error("{0}")]
     InvalidArchive(String),
 
     /// File or directory not found
-    #[error("tar: {path}: Cannot open: No such file or directory")]
+    #[error("{path}: Cannot open: No such file or directory")]
     FileNotFound { path: PathBuf },
 
     /// Permission denied when accessing file
-    #[error("tar: {path}: Cannot open: Permission denied")]
+    #[error("{path}: Cannot open: Permission denied")]
     PermissionDenied { path: PathBuf },
 
     /// Cannot create archive file
-    #[error("tar: Cannot create archive '{path}': {source}")]
+    #[error("Cannot create archive '{path}': {source}")]
     CannotCreateArchive { path: PathBuf, source: io::Error },
 
     /// Cannot add a directory to the archive
-    #[error("tar: Cannot add directory '{path}': {source}")]
+    #[error("Cannot add directory '{path}': {source}")]
     CannotAddDirectory { path: PathBuf, source: io::Error },
 
     /// Cannot add a file to the archive
-    #[error("tar: Cannot add file '{path}': {source}")]
+    #[error("Cannot add file '{path}': {source}")]
     CannotAddFile { path: PathBuf, source: io::Error },
 
     /// Cannot extract an archive entry
-    #[error("tar: Cannot extract '{path}': {source}")]
+    #[error("Cannot extract '{path}': {source}")]
     CannotExtract { path: PathBuf, source: io::Error },
 
     /// General tar operation error
-    #[error("tar: {0}")]
+    #[error("{0}")]
     TarOperationError(String),
 
     /// Cannot finalize the archive
-    #[error("tar: Cannot finalize archive: {0}")]
+    #[error("Cannot finalize archive: {0}")]
     CannotFinalizeArchive(io::Error),
 
     /// Refusing to write archive contents to terminal
-    #[error("tar: Refusing to write archive contents to terminal (missing -f option?)")]
+    #[error("Refusing to write archive contents to terminal (missing -f option?)")]
     RefuseWriteArchiveToTerminal,
 
     /// A member name with a `..` component, which is not extracted
-    #[error("tar: {path}: Member name contains '..'")]
+    #[error("{path}: Member name contains '..'")]
     MemberNameContainsDotDot { path: PathBuf },
 
     /// Errors that were reported earlier and recovered from
-    #[error("tar: Exiting with failure status due to previous errors")]
+    #[error("Exiting with failure status due to previous errors")]
     PreviousErrors,
 }
 
@@ -95,7 +95,7 @@ impl TarError {
 /// Reports an error that tar recovers from: the operation carries on, and has to
 /// end with [`finish_after_previous_errors`].
 pub fn report_recoverable(err: &TarError) -> UResult<()> {
-    writeln!(io::stderr(), "{err}").map_err(TarError::Io)?;
+    writeln!(io::stderr(), "{}: {err}", uucore::util_name()).map_err(TarError::Io)?;
     Ok(())
 }
 
@@ -103,7 +103,13 @@ pub fn report_recoverable(err: &TarError) -> UResult<()> {
 /// GNU tar. The status is set right before returning `Ok`, which is how `tarapp`
 /// tells these errors apart from fatal ones.
 pub fn finish_after_previous_errors() -> UResult<()> {
-    writeln!(io::stderr(), "{}", TarError::PreviousErrors).map_err(TarError::Io)?;
+    writeln!(
+        io::stderr(),
+        "{}: {}",
+        uucore::util_name(),
+        TarError::PreviousErrors
+    )
+    .map_err(TarError::Io)?;
     set_exit_code(2);
     Ok(())
 }

@@ -24,12 +24,15 @@ pub fn list_archive(
     let reader = open_archive_reader(input, compression)?;
     let mut archive = Archive::new(reader);
     let mut out = BufWriter::new(io::stdout().lock());
+    // Width of the "owner/group size" column; it grows for a wider entry and
+    // stays wide for the rest of the listing, as in GNU tar.
+    let mut owner_size_width = 19;
 
     for entry_result in archive.entries().map_err(TarError::CannotReadEntries)? {
         let entry = entry_result.map_err(TarError::CannotReadEntry)?;
 
         if verbose {
-            let formatted = format_verbose_entry(&entry)?;
+            let formatted = format_verbose_entry(&entry, &mut owner_size_width)?;
             writeln!(out, "{formatted}").map_err(TarError::Io)?;
         } else {
             let path = entry.path().map_err(TarError::CannotReadEntryPath)?;
@@ -41,24 +44,22 @@ pub fn list_archive(
     Ok(())
 }
 
-fn format_verbose_entry<R: Read>(entry: &tar::Entry<'_, R>) -> Result<String, TarError> {
+fn format_verbose_entry<R: Read>(
+    entry: &tar::Entry<'_, R>,
+    owner_size_width: &mut usize,
+) -> Result<String, TarError> {
     let (mode, entry_type, owner, group, size, mtime) = {
         let header = entry.header();
+        // Without a user or group name GNU tar shows the numeric id.
+        let name_or_id = |name: Option<&str>, id: Option<u64>| match name {
+            Some(name) if !name.is_empty() => name.to_owned(),
+            _ => id.unwrap_or(0).to_string(),
+        };
         (
             header.mode().unwrap_or(0),
             header.entry_type(),
-            header
-                .username()
-                .ok()
-                .flatten()
-                .unwrap_or_default()
-                .to_owned(),
-            header
-                .groupname()
-                .ok()
-                .flatten()
-                .unwrap_or_default()
-                .to_owned(),
+            name_or_id(header.username().ok().flatten(), header.uid().ok()),
+            name_or_id(header.groupname().ok().flatten(), header.gid().ok()),
             header.size().unwrap_or(0),
             header.mtime().unwrap_or(0),
         )
@@ -91,8 +92,12 @@ fn format_verbose_entry<R: Read>(entry: &tar::Entry<'_, R>) -> Result<String, Ta
         _ => String::new(),
     };
 
+    let owner_group = format!("{owner}/{group}");
+    let size = size.to_string();
+    *owner_size_width = (*owner_size_width).max(owner_group.len() + 1 + size.len());
+    let size_width = *owner_size_width - owner_group.len() - 1;
     Ok(format!(
-        "{permissions} {owner}/{group} {size:>8} {date_str} {}{link_str}",
+        "{permissions} {owner_group} {size:>size_width$} {date_str} {}{link_str}",
         path.display()
     ))
 }

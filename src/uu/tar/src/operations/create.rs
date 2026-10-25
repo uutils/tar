@@ -128,11 +128,7 @@ fn get_normalized_path(path: &Path, allow_absolute: bool) -> Result<PathBuf, Tar
                 [..original_components.len() - normalized_components.len()]
                 .iter()
                 .collect();
-            writeln!(
-                std::io::stderr(),
-                "tar: Removing leading `{}' from member names",
-                removed.display()
-            )?;
+            super::warn_removed_prefix(removed.display())?;
         }
         Ok(normalized)
     } else {

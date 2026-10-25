@@ -3,6 +3,8 @@
 // For the full copyright and license information, please view the LICENSE
 // file that was distributed with this source code.
 
+use std::fmt::Display;
+use std::io::{self, Write};
 #[cfg(test)]
 use std::path::{Path, PathBuf};
 #[cfg(test)]
@@ -11,6 +13,15 @@ use std::sync::{Mutex, MutexGuard, OnceLock};
 pub mod create;
 pub mod extract;
 pub mod list;
+
+/// The warning GNU tar gives when it strips a leading prefix (`/`, `../`)
+/// from a member name.
+pub(crate) fn warn_removed_prefix(prefix: impl Display) -> io::Result<()> {
+    writeln!(
+        io::stderr(),
+        "tar: Removing leading `{prefix}' from member names"
+    )
+}
 
 #[cfg(test)]
 pub(crate) fn test_cwd_lock() -> &'static Mutex<()> {

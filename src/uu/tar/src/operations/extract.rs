@@ -105,12 +105,7 @@ fn warn_leading_slashes(
         .count();
     if slashes > 0 && warned.insert(slashes) {
         out.flush().map_err(TarError::Io)?;
-        writeln!(
-            io::stderr(),
-            "tar: Removing leading `{}' from member names",
-            "/".repeat(slashes)
-        )
-        .map_err(TarError::Io)?;
+        super::warn_removed_prefix("/".repeat(slashes)).map_err(TarError::Io)?;
     }
     Ok(())
 }

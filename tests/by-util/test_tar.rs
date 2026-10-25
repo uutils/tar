@@ -329,6 +329,26 @@ fn test_extract_single_file() {
 }
 
 #[test]
+fn test_extract_verbose_lists_only_members() {
+    // Like GNU tar, -xv prints the member names and nothing else.
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.write("file1.txt", "content1");
+    at.mkdir("dir");
+    at.write("dir/file2.txt", "content2");
+    ucmd.args(&["-cf", "archive.tar", "file1.txt", "dir/file2.txt"])
+        .succeeds();
+    at.remove("file1.txt");
+    at.remove("dir/file2.txt");
+
+    new_ucmd!()
+        .arg("-xvf")
+        .arg(at.plus("archive.tar"))
+        .current_dir(at.as_string())
+        .succeeds()
+        .stdout_only("file1.txt\ndir/file2.txt\n");
+}
+
+#[test]
 fn test_extract_verbose() {
     let (at, mut ucmd) = at_and_ucmd!();
 

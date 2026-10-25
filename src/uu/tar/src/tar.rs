@@ -162,11 +162,11 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
 
         let compression = explicit_compression.unwrap_or(CompressionMode::Auto);
         return if archive_path == Path::new("-") {
-            operations::extract::extract_archive(io::stdin(), archive_path, verbose, compression)
+            operations::extract::extract_archive(io::stdin(), verbose, compression)
         } else {
             let file =
                 File::open(archive_path).map_err(|e| TarError::from_io_error(e, archive_path))?;
-            operations::extract::extract_archive(file, archive_path, verbose, compression)
+            operations::extract::extract_archive(file, verbose, compression)
         };
     }
 

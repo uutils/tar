@@ -17,7 +17,6 @@ use uucore::error::UResult;
 ///
 /// # Arguments
 ///
-/// * `archive_path` - Path to the tar archive to extract
 /// * `verbose` - Whether to print verbose output during extraction
 ///
 /// # Errors
@@ -28,18 +27,12 @@ use uucore::error::UResult;
 /// - Files cannot be extracted due to I/O or permission errors
 pub fn extract_archive(
     input: impl Read,
-    archive_path: &Path,
     verbose: bool,
     compression: CompressionMode,
 ) -> UResult<()> {
     let reader = open_archive_reader(input, compression)?;
     let mut archive = Archive::new(reader);
     let mut out = BufWriter::new(io::stdout().lock());
-
-    // Extract to current directory
-    if verbose {
-        writeln!(out, "Extracting archive: {}", archive_path.display()).map_err(TarError::Io)?;
-    }
 
     // Members that were refused are reported as they are met; like GNU tar, the
     // remaining members are still extracted and the exit status records the failure.

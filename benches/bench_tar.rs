@@ -186,13 +186,7 @@ fn extract_archive_20_files(bencher: divan::Bencher) {
         .bench_local_values(|extract_dir| {
             std::env::set_current_dir(extract_dir.path()).unwrap();
             let input = File::open(&archive_path).unwrap();
-            operations::extract::extract_archive(
-                input,
-                &archive_path,
-                false,
-                CompressionMode::None,
-            )
-            .unwrap();
+            operations::extract::extract_archive(input, false, CompressionMode::None).unwrap();
         });
     std::env::set_current_dir(original_dir).unwrap();
 }

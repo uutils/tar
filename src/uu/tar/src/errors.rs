@@ -103,13 +103,7 @@ pub fn report_recoverable(err: &TarError) -> UResult<()> {
 /// GNU tar. The status is set right before returning `Ok`, which is how `tarapp`
 /// tells these errors apart from fatal ones.
 pub fn finish_after_previous_errors() -> UResult<()> {
-    writeln!(
-        io::stderr(),
-        "{}: {}",
-        uucore::util_name(),
-        TarError::PreviousErrors
-    )
-    .map_err(TarError::Io)?;
+    report_recoverable(&TarError::PreviousErrors)?;
     set_exit_code(2);
     Ok(())
 }

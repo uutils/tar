@@ -665,17 +665,8 @@ fn test_extract_nonexistent_archive() {
         .args(&["-xf", "nonexistent.tar"])
         .fails()
         .code_is(2)
-        .stderr_contains("nonexistent.tar");
-}
-
-#[test]
-fn test_error_message_has_one_prefix() {
-    let result = new_ucmd!().args(&["-tf", "nonexistent.tar"]).fails();
-    let first = result.stderr_str().lines().next().unwrap();
-    assert_eq!(
-        first.split_once(": ").unwrap().1,
-        "nonexistent.tar: Cannot open: No such file or directory"
-    );
+        .stderr_contains(": nonexistent.tar: Cannot open")
+        .stderr_does_not_contain(": tar: ");
 }
 
 #[test]

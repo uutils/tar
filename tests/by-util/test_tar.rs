@@ -344,19 +344,13 @@ fn test_extract_verbose() {
     at.remove("file2.txt");
     at.remove("file3.txt");
 
-    // Extract with verbose
-    let result = new_ucmd!()
+    // Extract with verbose: like GNU tar, only the member names are printed
+    new_ucmd!()
         .arg("-xvf")
         .arg(at.plus("archive.tar"))
         .current_dir(at.as_string())
-        .succeeds();
-
-    let stdout = result.stdout_str();
-
-    // Verify all files are listed in verbose output
-    assert!(stdout.contains("file1.txt"));
-    assert!(stdout.contains("file2.txt"));
-    assert!(stdout.contains("file3.txt"));
+        .succeeds()
+        .stdout_only("file1.txt\nfile2.txt\nfile3.txt\n");
 
     // Verify files were extracted
     assert!(at.file_exists("file1.txt"));

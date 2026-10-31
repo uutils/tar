@@ -1139,6 +1139,53 @@ fn test_list_verbose() {
 }
 
 #[test]
+// chrono reads TZ on Unix only
+#[cfg(unix)]
+fn test_list_verbose_owner_and_size_columns() {
+    // GNU tar shows the numeric ids when the header has no names, and keeps
+    // "owner/group size" 19 columns wide, widening it for a longer entry.
+    let at = &at_and_ucmd!().0;
+
+    let mut tar_bytes = Vec::new();
+    {
+        let mut builder = TarRsBuilder::new(&mut tar_bytes);
+        for (name, user, group, size) in [
+            ("named.txt", "po", "po", 2),
+            ("ids.txt", "", "", 200_000),
+            ("long.txt", "averyveryverylongusername", "gg", 2),
+            ("after.txt", "po", "po", 2),
+        ] {
+            let mut header = TarRsHeader::new_gnu();
+            header.set_mode(0o644);
+            header.set_uid(1000);
+            header.set_gid(1000);
+            header.set_mtime(0);
+            header.set_size(size);
+            header.set_username(user).unwrap();
+            header.set_groupname(group).unwrap();
+            header.set_cksum();
+            builder
+                .append_data(&mut header, name, std::io::repeat(0).take(size))
+                .unwrap();
+        }
+        builder.finish().unwrap();
+    }
+    at.write_bytes("owners.tar", &tar_bytes);
+
+    new_ucmd!()
+        .env("TZ", "UTC0")
+        .args(&["-tvf", "owners.tar"])
+        .current_dir(at.as_string())
+        .succeeds()
+        .stdout_only(concat!(
+            "-rw-r--r-- po/po             2 1970-01-01 00:00 named.txt\n",
+            "-rw-r--r-- 1000/1000    200000 1970-01-01 00:00 ids.txt\n",
+            "-rw-r--r-- averyveryverylongusername/gg 2 1970-01-01 00:00 long.txt\n",
+            "-rw-r--r-- po/po                        2 1970-01-01 00:00 after.txt\n",
+        ));
+}
+
+#[test]
 fn test_list_verbose_links() {
     let at = &at_and_ucmd!().0;
 

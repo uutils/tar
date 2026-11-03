@@ -14,6 +14,9 @@ use tar::Archive;
 use uucore::error::UResult;
 use uucore::fs::display_permissions_unix;
 
+/// Starting width of the "owner/group size" column in a verbose listing.
+const MIN_OWNER_SIZE_WIDTH: usize = 19;
+
 /// List the contents of a tar archive, printing one entry per line.
 pub fn list_archive(
     input: impl Read,
@@ -26,7 +29,7 @@ pub fn list_archive(
     let mut out = BufWriter::new(io::stdout().lock());
     // Width of the "owner/group size" column; it grows for a wider entry and
     // stays wide for the rest of the listing, as in GNU tar.
-    let mut owner_size_width = 19;
+    let mut owner_size_width = MIN_OWNER_SIZE_WIDTH;
 
     for entry_result in archive.entries().map_err(TarError::CannotReadEntries)? {
         let entry = entry_result.map_err(TarError::CannotReadEntry)?;

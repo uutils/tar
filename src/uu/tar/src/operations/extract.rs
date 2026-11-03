@@ -85,11 +85,13 @@ pub fn extract_archive(
         let refused = unpack_entry(&mut entry, path.clone(), &mut out)?;
         refused_member |= refused;
         // The archive's mtime, as GNU tar restores it (tar-rs only does it for files)
-        if let (false, Some(mtime)) = (refused, mtime) {
-            if let Err(e) = set_directory_mtime(&path, mtime) {
-                out.flush().map_err(TarError::Io)?;
-                report_recoverable(&TarError::CannotUtime { path, source: e })?;
-                refused_member = true;
+        if !refused {
+            if let Some(mtime) = mtime {
+                if let Err(e) = set_directory_mtime(&path, mtime) {
+                    out.flush().map_err(TarError::Io)?;
+                    report_recoverable(&TarError::CannotUtime { path, source: e })?;
+                    refused_member = true;
+                }
             }
         }
     }

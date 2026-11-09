@@ -76,6 +76,27 @@ fn test_missing_archive_name_is_usage_error() {
 }
 
 #[test]
+fn test_empty_archive_name_cannot_open() {
+    // GNU tar: `-f ""` is not a usage error but a "Cannot open" failure, exit 2.
+    for args in [&["-tf", ""][..], &["-xf", ""], &["-t", "--file="]] {
+        new_ucmd!()
+            .args(args)
+            .fails()
+            .code_is(2)
+            .stderr_contains(": Cannot open: No such file or directory")
+            .stderr_does_not_contain("a value is required");
+    }
+
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.write("a.txt", "a");
+    ucmd.args(&["-cf", "", "a.txt"])
+        .fails()
+        .code_is(2)
+        .stderr_contains("Cannot create archive ''")
+        .stderr_does_not_contain("a value is required");
+}
+
+#[test]
 fn test_conflicting_operations_is_usage_error() {
     new_ucmd!()
         .args(&["-c", "-x", "-f", "archive.tar"])

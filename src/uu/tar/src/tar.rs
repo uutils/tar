@@ -96,7 +96,9 @@ fn expand_posix_keystring(args: Vec<std::ffi::OsString>) -> Vec<std::ffi::OsStri
 }
 
 /// Returns true when clap rejected an option because its value was missing
-/// (for example `tar -cf` with nothing after `-f`).
+/// (for example `tar -cf` with nothing after `-f`). An explicitly empty
+/// archive name (`-f ""`) is accepted by the `--file` parser, so it does not
+/// end up here.
 fn is_missing_value(err: &clap::Error) -> bool {
     use clap::error::{ContextKind, ContextValue};
     matches!(
@@ -105,12 +107,12 @@ fn is_missing_value(err: &clap::Error) -> bool {
     )
 }
 
-/// Builds an exit-status-2 usage error. Like GNU tar, it is not followed by
-/// "Error is not recoverable": recording the code first tells the binary that
-/// this is not a fatal runtime error.
-fn usage_error(msg: &str) -> Box<dyn uucore::error::UError> {
-    uucore::error::set_exit_code(2);
-    uucore::error::USimpleError::new(2, msg)
+/// Builds a usage error with the given exit status. Like GNU tar, it is not
+/// followed by "Error is not recoverable": recording the code first tells the
+/// binary that this is not a fatal runtime error.
+fn usage_error(code: i32, msg: impl Into<String>) -> Box<dyn uucore::error::UError> {
+    uucore::error::set_exit_code(code);
+    uucore::error::USimpleError::new(code, msg)
 }
 
 #[uucore::main]
@@ -158,11 +160,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
                         | clap::error::ErrorKind::ValueValidation => 2,
                         _ => 2,
                     };
-                    // A usage error is not a fatal runtime error, so GNU tar
-                    // never follows it with "Error is not recoverable".
-                    // Recording the code tells the binary not to add that line.
-                    uucore::error::set_exit_code(code);
-                    return Err(uucore::error::USimpleError::new(code, err.to_string()));
+                    return Err(usage_error(code, err.to_string()));
                 }
             }
         }
@@ -207,7 +205,10 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
             .unwrap_or_default();
 
         if files.is_empty() {
-            return Err(usage_error("Cowardly refusing to create an empty archive"));
+            return Err(usage_error(
+                2,
+                "Cowardly refusing to create an empty archive",
+            ));
         }
 
         let compression = explicit_compression.unwrap_or(CompressionMode::None);
@@ -264,6 +265,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
 
     // If no operation specified, show error
     Err(usage_error(
+        2,
         "You must specify one of the '-c', '-x', or '-t' options",
     ))
 }
@@ -287,8 +289,14 @@ pub fn uu_app() -> Command {
                 .alias("get")
                 .conflicts_with_all(["create", "list"]),
             // Archive file
-            arg!(-f --file <ARCHIVE> "Use archive file or device ARCHIVE")
-                .value_parser(clap::value_parser!(PathBuf)),
+            // An empty archive name is accepted here, so that `-f ""` fails
+            // later with "Cannot open" like GNU tar instead of a usage error.
+            arg!(-f --file <ARCHIVE> "Use archive file or device ARCHIVE").value_parser(
+                clap::builder::TypedValueParser::map(
+                    clap::builder::OsStringValueParser::new(),
+                    PathBuf::from,
+                ),
+            ),
             arg!(
                 -P --"absolute-names"
                 "Don't strip leading '/'s from file names"

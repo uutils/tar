@@ -261,14 +261,44 @@ fn test_create_skips_nonexistent_file_and_archives_the_rest() {
         .stderr_contains("Exiting with failure status due to previous errors")
         .stderr_does_not_contain("not recoverable");
 
+    new_ucmd!()
+        .args(&["-tf", "archive.tar"])
+        .current_dir(at.as_string())
+        .succeeds()
+        .stdout_is("a.txt\nb.txt\n");
+}
+
+#[test]
+#[cfg(unix)]
+fn test_create_archives_dangling_symlink() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.write("a.txt", "a");
+    std::os::unix::fs::symlink("nowhere", at.plus("dangling")).unwrap();
+
+    // GNU tar archives the symlink itself and does not report it as missing
+    ucmd.args(&["-cf", "archive.tar", "a.txt", "dangling"])
+        .succeeds()
+        .no_stderr();
+
+    new_ucmd!()
+        .args(&["-tf", "archive.tar"])
+        .current_dir(at.as_string())
+        .succeeds()
+        .stdout_is("a.txt\ndangling\n");
+
     let file = std::fs::File::open(at.plus("archive.tar")).unwrap();
     let mut archive = TarRsArchive::new(file);
-    let names: Vec<String> = archive
+    let entry = archive
         .entries()
         .unwrap()
-        .map(|e| e.unwrap().path().unwrap().to_string_lossy().into_owned())
-        .collect();
-    assert_eq!(names, ["a.txt", "b.txt"]);
+        .map(Result::unwrap)
+        .find(|e| e.path().unwrap().as_ref() == path::Path::new("dangling"))
+        .unwrap();
+    assert!(entry.header().entry_type().is_symlink());
+    assert_eq!(
+        entry.link_name().unwrap().unwrap().as_ref(),
+        path::Path::new("nowhere")
+    );
 }
 
 #[test]

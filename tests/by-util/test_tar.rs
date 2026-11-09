@@ -571,6 +571,61 @@ fn test_extract_reports_member_with_parent_dir_and_continues() {
 }
 
 #[test]
+fn test_extract_to_stdout() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.mkdir("dir");
+    at.write("dir/a.txt", "alpha\n");
+    at.write("b.txt", "beta\n");
+    ucmd.args(&["-cf", "archive.tar", "dir", "b.txt"])
+        .succeeds();
+    at.mkdir("out");
+
+    // Only the data of regular members is written, nothing is created
+    new_ucmd!()
+        .args(&["-xOf", "../archive.tar"])
+        .current_dir(at.plus("out"))
+        .succeeds()
+        .stdout_only("alpha\nbeta\n");
+    // Like GNU tar, -v sends the member names to stderr
+    new_ucmd!()
+        .args(&["--to-stdout", "-xvf", "../archive.tar"])
+        .current_dir(at.plus("out"))
+        .succeeds()
+        .stdout_is("alpha\nbeta\n")
+        .stderr_is("dir/\ndir/a.txt\nb.txt\n");
+
+    assert!(!at.dir_exists("out/dir"));
+    assert!(!at.file_exists("out/b.txt"));
+}
+
+#[test]
+fn test_extract_to_stdout_refuses_member_with_parent_dir() {
+    let (at, mut ucmd) = at_and_ucmd!();
+
+    let mut tar_bytes = Vec::new();
+    {
+        let mut builder = TarRsBuilder::new(&mut tar_bytes);
+        for (name, data) in [("../item", "x"), ("ok", "y")] {
+            let mut header = TarRsHeader::new_gnu();
+            header.as_old_mut().name[..name.len()].copy_from_slice(name.as_bytes());
+            header.set_mode(0o644);
+            header.set_size(1);
+            header.set_cksum();
+            builder.append(&header, Cursor::new(data)).unwrap();
+        }
+        builder.finish().unwrap();
+    }
+    at.write_bytes("members.tar", &tar_bytes);
+
+    ucmd.args(&["-xOf", "members.tar"])
+        .fails()
+        .code_is(2)
+        .stdout_is("y")
+        .stderr_contains("../item: Member name contains '..'")
+        .stderr_contains("Exiting with failure status due to previous errors");
+}
+
+#[test]
 #[cfg(unix)]
 fn test_extract_read_only_directory() {
     use std::os::unix::fs::PermissionsExt;

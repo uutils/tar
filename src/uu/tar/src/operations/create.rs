@@ -4,7 +4,7 @@
 // file that was distributed with this source code.
 
 use crate::compression::ArchiveWriter;
-use crate::errors::TarError;
+use crate::errors::{finish_after_previous_errors, report_recoverable, TarError};
 use crate::CompressionMode;
 use std::collections::VecDeque;
 use std::fs;
@@ -28,7 +28,8 @@ use uucore::error::UResult;
 ///
 /// Returns an error if:
 /// - The archive file cannot be created
-/// - Any input file cannot be read
+/// - Any input file cannot be read (a missing input file is reported and
+///   skipped, and the archive is still written)
 /// - Files cannot be added due to I/O or permission errors
 pub fn create_archive(
     output: impl Write,
@@ -47,14 +48,21 @@ pub fn create_archive(
     let mut builder = Builder::new(writer);
     builder.preserve_absolute(allow_absolute);
 
+    // Set when an operand could not be archived but the rest were, so that tar
+    // ends with "Exiting with failure status due to previous errors" like GNU tar.
+    let mut missing_operand = false;
+
     // Add each file or directory to the archive
     for &path in files {
-        // Check if path exists
+        // A missing operand is reported and skipped; the other operands are
+        // still archived, as with GNU tar.
         if !path.exists() {
-            return Err(TarError::FileNotFound {
+            status_output.flush().map_err(TarError::Io)?;
+            report_recoverable(&TarError::CannotStat {
                 path: path.to_path_buf(),
-            }
-            .into());
+            })?;
+            missing_operand = true;
+            continue;
         }
 
         if verbose {
@@ -94,6 +102,9 @@ pub fn create_archive(
     writer.finish()?;
     status_output.flush().map_err(TarError::Io)?;
 
+    if missing_operand {
+        return finish_after_previous_errors();
+    }
     Ok(())
 }
 

@@ -237,11 +237,38 @@ fn test_create_empty_archive_fails() {
 
 #[test]
 fn test_create_nonexistent_file_fails() {
-    new_ucmd!()
-        .args(&["-cf", "archive.tar", "nonexistent.txt"])
+    let (at, mut ucmd) = at_and_ucmd!();
+    ucmd.args(&["-cf", "archive.tar", "nonexistent.txt"])
         .fails()
         .code_is(2)
-        .stderr_contains("nonexistent.txt");
+        .stderr_contains("nonexistent.txt: Cannot stat: No such file or directory")
+        .stderr_contains("Exiting with failure status due to previous errors");
+
+    // GNU tar still writes the (empty) archive
+    assert!(at.file_exists("archive.tar"));
+}
+
+#[test]
+fn test_create_skips_nonexistent_file_and_archives_the_rest() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.write("a.txt", "a");
+    at.write("b.txt", "b");
+
+    ucmd.args(&["-cf", "archive.tar", "a.txt", "missing.txt", "b.txt"])
+        .fails()
+        .code_is(2)
+        .stderr_contains("missing.txt: Cannot stat: No such file or directory")
+        .stderr_contains("Exiting with failure status due to previous errors")
+        .stderr_does_not_contain("not recoverable");
+
+    let file = std::fs::File::open(at.plus("archive.tar")).unwrap();
+    let mut archive = TarRsArchive::new(file);
+    let names: Vec<String> = archive
+        .entries()
+        .unwrap()
+        .map(|e| e.unwrap().path().unwrap().to_string_lossy().into_owned())
+        .collect();
+    assert_eq!(names, ["a.txt", "b.txt"]);
 }
 
 #[test]

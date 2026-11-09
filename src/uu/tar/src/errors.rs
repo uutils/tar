@@ -36,6 +36,10 @@ pub enum TarError {
     #[error("{path}: Cannot open: No such file or directory")]
     FileNotFound { path: PathBuf },
 
+    /// A file operand to archive does not exist
+    #[error("{path}: Cannot stat: No such file or directory")]
+    CannotStat { path: PathBuf },
+
     /// Permission denied when accessing file
     #[error("{path}: Cannot open: Permission denied")]
     PermissionDenied { path: PathBuf },

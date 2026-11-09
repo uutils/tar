@@ -280,25 +280,55 @@ fn test_create_archives_dangling_symlink() {
         .succeeds()
         .no_stderr();
 
-    new_ucmd!()
-        .args(&["-tf", "archive.tar"])
+    let result = new_ucmd!()
+        .args(&["-tvf", "archive.tar"])
         .current_dir(at.as_string())
-        .succeeds()
-        .stdout_is("a.txt\ndangling\n");
+        .succeeds();
+    let lines: Vec<&str> = result.stdout_str().lines().collect();
+    assert_eq!(lines.len(), 2);
+    assert!(lines[0].ends_with(" a.txt"));
+    assert!(lines[1].starts_with('l'));
+    assert!(lines[1].ends_with(" dangling -> nowhere"));
+}
 
-    let file = std::fs::File::open(at.plus("archive.tar")).unwrap();
-    let mut archive = TarRsArchive::new(file);
-    let entry = archive
-        .entries()
-        .unwrap()
-        .map(Result::unwrap)
-        .find(|e| e.path().unwrap().as_ref() == path::Path::new("dangling"))
-        .unwrap();
-    assert!(entry.header().entry_type().is_symlink());
-    assert_eq!(
-        entry.link_name().unwrap().unwrap().as_ref(),
-        path::Path::new("nowhere")
+#[test]
+#[cfg(unix)]
+fn test_create_does_not_follow_symlinks() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.mkdir("dir");
+    at.write("dir/file.txt", "content");
+    std::os::unix::fs::symlink("file.txt", at.plus("dir/inner_link")).unwrap();
+    std::os::unix::fs::symlink("dir/file.txt", at.plus("file_link")).unwrap();
+    std::os::unix::fs::symlink("dir", at.plus("dir_link")).unwrap();
+
+    // GNU tar without -h archives symlinks as symlinks, both as operands and
+    // inside directories, and does not descend into a symlink to a directory
+    ucmd.args(&["-cvf", "archive.tar", "dir", "file_link", "dir_link"])
+        .succeeds()
+        .no_stderr();
+
+    let result = new_ucmd!()
+        .args(&["-tvf", "archive.tar"])
+        .current_dir(at.as_string())
+        .succeeds();
+    let symlinks: Vec<&str> = result
+        .stdout_str()
+        .lines()
+        .filter(|l| l.starts_with('l'))
+        .collect();
+    assert_eq!(symlinks.len(), 3, "{symlinks:?}");
+    assert!(
+        symlinks
+            .iter()
+            .any(|l| l.ends_with(" dir/inner_link -> file.txt"))
     );
+    assert!(
+        symlinks
+            .iter()
+            .any(|l| l.ends_with(" file_link -> dir/file.txt"))
+    );
+    assert!(symlinks.iter().any(|l| l.ends_with(" dir_link -> dir")));
+    assert!(!result.stdout_str().contains("dir_link/"));
 }
 
 #[test]

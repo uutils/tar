@@ -47,6 +47,9 @@ pub fn create_archive(
     let writer = ArchiveWriter::new(output, compression)?;
     let mut builder = Builder::new(writer);
     builder.preserve_absolute(allow_absolute);
+    // Like GNU tar without -h/--dereference, archive symlinks as symlinks,
+    // both for operands and for entries found inside directories.
+    builder.follow_symlinks(false);
 
     // Set when an operand could not be archived but the rest were, so that tar
     // ends with "Exiting with failure status due to previous errors" like GNU tar.
@@ -57,14 +60,14 @@ pub fn create_archive(
         // A missing operand is reported and skipped; the other operands are
         // still archived, as with GNU tar. `symlink_metadata` does not follow
         // symlinks, so a dangling symlink is not treated as missing.
-        if path.symlink_metadata().is_err() {
+        let Ok(metadata) = path.symlink_metadata() else {
             status_output.flush().map_err(TarError::Io)?;
             report_recoverable(&TarError::CannotStat {
                 path: path.to_path_buf(),
             })?;
             missing_operand = true;
             continue;
-        }
+        };
 
         if verbose {
             print_verbose_tree(&mut status_output, path, recursive)?;
@@ -72,7 +75,7 @@ pub fn create_archive(
 
         let normalized_name = get_normalized_path(path, allow_absolute)?;
 
-        if path.is_dir() {
+        if metadata.is_dir() {
             if recursive {
                 // If it's a directory, recursively add all contents
                 builder.append_dir_all(normalized_name, path)
@@ -86,21 +89,13 @@ pub fn create_archive(
                 source: e,
             })?;
         } else {
-            // A dangling symlink has nothing to follow, so archive the link
-            // itself, as GNU tar does.
-            let dangling_symlink = !path.exists();
-            if dangling_symlink {
-                builder.follow_symlinks(false);
-            }
-            // For files, add them directly
-            let result = builder.append_path_with_name(path, normalized_name);
-            if dangling_symlink {
-                builder.follow_symlinks(true);
-            }
-            result.map_err(|e| TarError::CannotAddFile {
-                path: path.to_path_buf(),
-                source: e,
-            })?;
+            // For files and symlinks, add them directly
+            builder
+                .append_path_with_name(path, normalized_name)
+                .map_err(|e| TarError::CannotAddFile {
+                    path: path.to_path_buf(),
+                    source: e,
+                })?;
         }
     }
 
@@ -125,7 +120,7 @@ fn print_verbose_tree(status_output: &mut impl Write, path: &Path, recursive: bo
     };
     let to_print = tree
         .iter()
-        .map(|p| (p.is_dir(), p.display().to_string()))
+        .map(|p| (is_real_dir(p), p.display().to_string()))
         .map(|(is_dir, path)| {
             if is_dir {
                 format!("{}{}", path, path::MAIN_SEPARATOR)
@@ -156,6 +151,12 @@ fn get_normalized_path(path: &Path, allow_absolute: bool) -> Result<PathBuf, Tar
     }
 }
 
+/// Returns true for a directory, but not for a symlink to a directory, which
+/// is archived as a symlink.
+fn is_real_dir(path: &Path) -> bool {
+    path.symlink_metadata().is_ok_and(|m| m.is_dir())
+}
+
 fn get_tree(path: &Path) -> Result<Vec<PathBuf>, std::io::Error> {
     let mut paths = Vec::new();
     let mut stack = VecDeque::new();
@@ -163,7 +164,7 @@ fn get_tree(path: &Path) -> Result<Vec<PathBuf>, std::io::Error> {
 
     while let Some(current) = stack.pop_back() {
         paths.push(current.clone());
-        if current.is_dir() {
+        if is_real_dir(&current) {
             for entry in fs::read_dir(current)? {
                 let child = entry?.path();
                 stack.push_back(child);

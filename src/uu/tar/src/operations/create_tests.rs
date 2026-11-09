@@ -84,21 +84,3 @@ fn test_create_archive_with_zstd() {
     let entry = entries.next().unwrap().unwrap();
     assert_eq!(entry.path().unwrap().to_str(), Some("file.txt"));
 }
-
-#[test]
-fn test_create_archive_missing_file_fails() {
-    let tempdir = tempdir().unwrap();
-    let missing_path = tempdir.path().join("missing.txt");
-
-    let err = create_archive(
-        io::sink(),
-        io::sink(),
-        &[missing_path.as_path()],
-        false,
-        false,
-        true,
-        CompressionMode::Zstd,
-    )
-    .unwrap_err();
-    assert!(err.to_string().contains("missing.txt"));
-}

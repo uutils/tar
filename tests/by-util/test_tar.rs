@@ -97,6 +97,25 @@ fn test_empty_archive_name_cannot_open() {
 }
 
 #[test]
+fn test_empty_file_operand_is_not_usage_error() {
+    // GNU tar: `tar -cf a.tar ""` reports ": Cannot stat" and exits 2; an
+    // empty file operand is not a missing `--file` value (exit 64).
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.write("a.txt", "a");
+    ucmd.args(&["-cf", "archive.tar", "a.txt", ""])
+        .fails()
+        .code_is(2)
+        .stderr_contains(": Cannot ")
+        .stderr_does_not_contain("a value is required");
+
+    new_ucmd!()
+        .args(&["-cf", "archive.tar", ""])
+        .fails()
+        .code_is(2)
+        .stderr_does_not_contain("a value is required");
+}
+
+#[test]
 fn test_conflicting_operations_is_usage_error() {
     new_ucmd!()
         .args(&["-c", "-x", "-f", "archive.tar"])

@@ -95,16 +95,28 @@ fn expand_posix_keystring(args: Vec<std::ffi::OsString>) -> Vec<std::ffi::OsStri
     result
 }
 
-/// Returns true when clap rejected an option because its value was missing
-/// (for example `tar -cf` with nothing after `-f`). An explicitly empty
-/// archive name (`-f ""`) is accepted by the `--file` parser, so it does not
-/// end up here.
+/// Returns true when clap rejected `--file` because its value was missing
+/// (for example `tar -cf` with nothing after `-f`). Explicitly empty values
+/// (`-f ""` or an empty file operand) are accepted by the parsers, so they do
+/// not end up here.
 fn is_missing_value(err: &clap::Error) -> bool {
     use clap::error::{ContextKind, ContextValue};
-    matches!(
+    let is_file_arg = matches!(
+        err.get(ContextKind::InvalidArg),
+        Some(ContextValue::String(arg)) if arg.starts_with("--file")
+    );
+    let value_is_empty = matches!(
         err.get(ContextKind::InvalidValue),
         Some(ContextValue::String(value)) if value.is_empty()
-    )
+    );
+    is_file_arg && value_is_empty
+}
+
+/// Parses a path value without rejecting the empty string, so that an empty
+/// name fails later with "Cannot open" / "Cannot stat" like GNU tar instead
+/// of a usage error.
+fn path_value_parser() -> impl clap::builder::TypedValueParser<Value = PathBuf> {
+    clap::builder::TypedValueParser::map(clap::builder::OsStringValueParser::new(), PathBuf::from)
 }
 
 /// Builds a usage error with the given exit status. Like GNU tar, it is not
@@ -289,14 +301,8 @@ pub fn uu_app() -> Command {
                 .alias("get")
                 .conflicts_with_all(["create", "list"]),
             // Archive file
-            // An empty archive name is accepted here, so that `-f ""` fails
-            // later with "Cannot open" like GNU tar instead of a usage error.
-            arg!(-f --file <ARCHIVE> "Use archive file or device ARCHIVE").value_parser(
-                clap::builder::TypedValueParser::map(
-                    clap::builder::OsStringValueParser::new(),
-                    PathBuf::from,
-                ),
-            ),
+            arg!(-f --file <ARCHIVE> "Use archive file or device ARCHIVE")
+                .value_parser(path_value_parser()),
             arg!(
                 -P --"absolute-names"
                 "Don't strip leading '/'s from file names"
@@ -316,7 +322,7 @@ pub fn uu_app() -> Command {
             // Files to process
             arg!([files]... "Files to archive or extract")
                 .action(ArgAction::Append)
-                .value_parser(clap::value_parser!(PathBuf)),
+                .value_parser(path_value_parser()),
         ])
 }
 

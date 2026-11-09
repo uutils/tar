@@ -48,33 +48,18 @@ pub fn extract_archive(
     // are extracted, or a read-only directory could not be filled.
     let mut directories = Vec::new();
 
-    let mut warned_slashes = HashSet::new();
-
-    // Iterate through entries for verbose output and error handling
-    for entry_result in archive.entries().map_err(TarError::CannotReadEntries)? {
-        let mut entry = entry_result.map_err(TarError::CannotReadEntry)?;
-
-        // Get the path before unpacking (clone it so we can use it after borrowing entry mutably)
-        let path = entry
-            .path()
-            .map_err(TarError::CannotReadEntryPath)?
-            .to_path_buf();
-
-        warn_leading_slashes(&path, &mut warned_slashes, &mut out)?;
-        if verbose {
-            writeln!(out, "{}", path.display()).map_err(TarError::Io)?;
-        }
-
+    for_each_member(&mut archive, verbose, &mut out, |mut entry, path, out| {
         // Directories with a `..` component are not deferred, so they are
         // refused in archive order
         if entry.header().entry_type() == EntryType::Directory
             && !path.components().any(|c| c == Component::ParentDir)
         {
             directories.push((path, entry));
-            continue;
+        } else {
+            refused_member |= unpack_entry(&mut entry, path, out)?;
         }
-        refused_member |= unpack_entry(&mut entry, path, &mut out)?;
-    }
+        Ok(())
+    })?;
 
     // Children before parents, so a read-only parent is restored last
     directories.sort_by(|a, b| b.0.cmp(&a.0));
@@ -96,37 +81,55 @@ fn extract_to_stdout<R: Read>(archive: &mut Archive<R>, verbose: bool) -> UResul
     let mut data = io::stdout().lock();
     let mut names = io::stderr().lock();
     let mut refused_member = false;
-    let mut warned_slashes = HashSet::new();
 
+    for_each_member(archive, verbose, &mut names, |mut entry, path, _| {
+        // GNU tar refuses these even when nothing is written to disk
+        if path.components().any(|c| c == Component::ParentDir) {
+            report_recoverable(&TarError::MemberNameContainsDotDot { path })?;
+            refused_member = true;
+            return Ok(());
+        }
+
+        // Like GNU tar, write the data of regular, contiguous and GNU sparse
+        // members (tar-rs fills in the holes of the latter). Directories,
+        // links and special files have no data to write.
+        let kind = entry.header().entry_type();
+        if kind.is_file() || kind.is_contiguous() || kind.is_gnu_sparse() {
+            io::copy(&mut entry, &mut data).map_err(TarError::Io)?;
+            // Flush after each member so `-v` names and contents interleave
+            data.flush().map_err(TarError::Io)?;
+        }
+        Ok(())
+    })?;
+
+    if refused_member {
+        return finish_after_previous_errors();
+    }
+    Ok(())
+}
+
+/// Reads each member of the archive, warns about leading slashes in its name,
+/// prints the name with `-v`, then passes the member and its name to `handle`.
+/// Messages and names go to `out`, which `handle` also gets.
+fn for_each_member<'a, R: Read, W: Write>(
+    archive: &'a mut Archive<R>,
+    verbose: bool,
+    out: &mut W,
+    mut handle: impl FnMut(Entry<'a, R>, PathBuf, &mut W) -> UResult<()>,
+) -> UResult<()> {
+    let mut warned_slashes = HashSet::new();
     for entry_result in archive.entries().map_err(TarError::CannotReadEntries)? {
-        let mut entry = entry_result.map_err(TarError::CannotReadEntry)?;
+        let entry = entry_result.map_err(TarError::CannotReadEntry)?;
         let path = entry
             .path()
             .map_err(TarError::CannotReadEntryPath)?
             .to_path_buf();
 
-        warn_leading_slashes(&path, &mut warned_slashes, &mut names)?;
+        warn_leading_slashes(&path, &mut warned_slashes, out)?;
         if verbose {
-            writeln!(names, "{}", path.display()).map_err(TarError::Io)?;
+            writeln!(out, "{}", path.display()).map_err(TarError::Io)?;
         }
-
-        // GNU tar refuses these even when nothing is written to disk
-        if path.components().any(|c| c == Component::ParentDir) {
-            report_recoverable(&TarError::MemberNameContainsDotDot { path })?;
-            refused_member = true;
-            continue;
-        }
-
-        // Directories, links and special files have no data to write
-        if entry.header().entry_type().is_file() {
-            io::copy(&mut entry, &mut data).map_err(TarError::Io)?;
-            // Flush after each member so `-v` names and contents interleave
-            data.flush().map_err(TarError::Io)?;
-        }
-    }
-
-    if refused_member {
-        return finish_after_previous_errors();
+        handle(entry, path, out)?;
     }
     Ok(())
 }

@@ -95,6 +95,24 @@ fn expand_posix_keystring(args: Vec<std::ffi::OsString>) -> Vec<std::ffi::OsStri
     result
 }
 
+/// Returns true when clap rejected an option because its value was missing
+/// (for example `tar -cf` with nothing after `-f`).
+fn is_missing_value(err: &clap::Error) -> bool {
+    use clap::error::{ContextKind, ContextValue};
+    matches!(
+        err.get(ContextKind::InvalidValue),
+        Some(ContextValue::String(value)) if value.is_empty()
+    )
+}
+
+/// Builds an exit-status-2 usage error. Like GNU tar, it is not followed by
+/// "Error is not recoverable": recording the code first tells the binary that
+/// this is not a fatal runtime error.
+fn usage_error(msg: &str) -> Box<dyn uucore::error::UError> {
+    uucore::error::set_exit_code(2);
+    uucore::error::USimpleError::new(2, msg)
+}
+
 #[uucore::main]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     // Collect args - the test framework may add util_name as args[1], so skip it if present
@@ -133,10 +151,17 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
                         | clap::error::ErrorKind::TooFewValues
                         | clap::error::ErrorKind::TooManyValues
                         | clap::error::ErrorKind::WrongNumberOfValues => 64,
+                        // `-f` with no archive name: GNU tar reports
+                        // "option requires an argument" and exits 64.
+                        clap::error::ErrorKind::InvalidValue if is_missing_value(&err) => 64,
                         clap::error::ErrorKind::InvalidValue
                         | clap::error::ErrorKind::ValueValidation => 2,
                         _ => 2,
                     };
+                    // A usage error is not a fatal runtime error, so GNU tar
+                    // never follows it with "Error is not recoverable".
+                    // Recording the code tells the binary not to add that line.
+                    uucore::error::set_exit_code(code);
                     return Err(uucore::error::USimpleError::new(code, err.to_string()));
                 }
             }
@@ -182,10 +207,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
             .unwrap_or_default();
 
         if files.is_empty() {
-            return Err(uucore::error::USimpleError::new(
-                2,
-                "Cowardly refusing to create an empty archive",
-            ));
+            return Err(usage_error("Cowardly refusing to create an empty archive"));
         }
 
         let compression = explicit_compression.unwrap_or(CompressionMode::None);
@@ -241,8 +263,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     }
 
     // If no operation specified, show error
-    Err(uucore::error::USimpleError::new(
-        2,
+    Err(usage_error(
         "You must specify one of the '-c', '-x', or '-t' options",
     ))
 }

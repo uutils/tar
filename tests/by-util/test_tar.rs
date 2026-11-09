@@ -58,7 +58,31 @@ fn test_no_operation_specified() {
         .args(&["-f", "archive.tar"])
         .fails()
         .code_is(2)
-        .stderr_contains("must specify one");
+        .stderr_contains("must specify one")
+        .stderr_does_not_contain("not recoverable");
+}
+
+#[test]
+fn test_missing_archive_name_is_usage_error() {
+    // GNU tar: "option requires an argument -- 'f'", exit status 64.
+    for args in [["-cf"], ["-tf"], ["-xf"]] {
+        new_ucmd!()
+            .args(&args)
+            .fails()
+            .code_is(64)
+            .stderr_contains("a value is required for '--file <ARCHIVE>'")
+            .stderr_does_not_contain("not recoverable");
+    }
+}
+
+#[test]
+fn test_conflicting_operations_is_usage_error() {
+    new_ucmd!()
+        .args(&["-c", "-x", "-f", "archive.tar"])
+        .fails()
+        .code_is(2)
+        .stderr_contains("cannot be used with")
+        .stderr_does_not_contain("not recoverable");
 }
 
 // Create operation tests
@@ -232,7 +256,8 @@ fn test_create_empty_archive_fails() {
         .args(&["-cf", "archive.tar"])
         .fails()
         .code_is(2)
-        .stderr_contains("empty archive");
+        .stderr_contains("empty archive")
+        .stderr_does_not_contain("not recoverable");
 }
 
 #[test]

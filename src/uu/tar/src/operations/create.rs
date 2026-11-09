@@ -55,8 +55,9 @@ pub fn create_archive(
     // Add each file or directory to the archive
     for &path in files {
         // A missing operand is reported and skipped; the other operands are
-        // still archived, as with GNU tar.
-        if !path.exists() {
+        // still archived, as with GNU tar. `symlink_metadata` does not follow
+        // symlinks, so a dangling symlink is not treated as missing.
+        if path.symlink_metadata().is_err() {
             status_output.flush().map_err(TarError::Io)?;
             report_recoverable(&TarError::CannotStat {
                 path: path.to_path_buf(),
@@ -85,13 +86,21 @@ pub fn create_archive(
                 source: e,
             })?;
         } else {
+            // A dangling symlink has nothing to follow, so archive the link
+            // itself, as GNU tar does.
+            let dangling_symlink = !path.exists();
+            if dangling_symlink {
+                builder.follow_symlinks(false);
+            }
             // For files, add them directly
-            builder
-                .append_path_with_name(path, normalized_name)
-                .map_err(|e| TarError::CannotAddFile {
-                    path: path.to_path_buf(),
-                    source: e,
-                })?;
+            let result = builder.append_path_with_name(path, normalized_name);
+            if dangling_symlink {
+                builder.follow_symlinks(true);
+            }
+            result.map_err(|e| TarError::CannotAddFile {
+                path: path.to_path_buf(),
+                source: e,
+            })?;
         }
     }
 

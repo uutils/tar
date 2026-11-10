@@ -7,7 +7,7 @@ use std::io;
 use std::io::Write;
 use std::path::PathBuf;
 use thiserror::Error;
-use uucore::error::{set_exit_code, UError, UResult};
+use uucore::error::{set_exit_code, strip_errno, UError, UResult};
 
 /// Error types for tar operations
 #[derive(Debug, Error)]
@@ -36,9 +36,9 @@ pub enum TarError {
     #[error("{path}: Cannot open: No such file or directory")]
     FileNotFound { path: PathBuf },
 
-    /// A file operand to archive does not exist
-    #[error("{path}: Cannot stat: No such file or directory")]
-    CannotStat { path: PathBuf },
+    /// A file operand to archive cannot be stat'ed (missing, permission denied, ...)
+    #[error("{path}: Cannot stat: {}", strip_errno(.source))]
+    CannotStat { path: PathBuf, source: io::Error },
 
     /// Permission denied when accessing file
     #[error("{path}: Cannot open: Permission denied")]

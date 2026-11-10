@@ -95,21 +95,16 @@ fn expand_posix_keystring(args: Vec<std::ffi::OsString>) -> Vec<std::ffi::OsStri
     result
 }
 
-/// Returns true when clap rejected `--file` because its value was missing
-/// (for example `tar -cf` with nothing after `-f`). Explicitly empty values
-/// (`-f ""` or an empty file operand) are accepted by the parsers, so they do
-/// not end up here.
+/// Returns true when clap rejected a value because it was missing (for example
+/// `tar -cf` with nothing after `-f`). `--file` is the only option taking a
+/// value, and explicitly empty values (`-f ""` or an empty file operand) are
+/// accepted by the parsers, so an empty invalid value can only mean this.
 fn is_missing_value(err: &clap::Error) -> bool {
     use clap::error::{ContextKind, ContextValue};
-    let is_file_arg = matches!(
-        err.get(ContextKind::InvalidArg),
-        Some(ContextValue::String(arg)) if arg.starts_with("--file")
-    );
-    let value_is_empty = matches!(
+    matches!(
         err.get(ContextKind::InvalidValue),
         Some(ContextValue::String(value)) if value.is_empty()
-    );
-    is_file_arg && value_is_empty
+    )
 }
 
 /// Parses a path value without rejecting the empty string, so that an empty

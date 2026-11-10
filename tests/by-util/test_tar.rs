@@ -270,6 +270,31 @@ fn test_create_skips_nonexistent_file_and_archives_the_rest() {
 
 #[test]
 #[cfg(unix)]
+fn test_create_reports_stat_error_of_operand() {
+    use std::os::unix::fs::PermissionsExt;
+
+    if rustix::process::geteuid().is_root() {
+        return;
+    }
+
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.mkdir("locked");
+    at.write("locked/file.txt", "x");
+    let locked = at.plus("locked");
+    std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o000)).unwrap();
+
+    let result = ucmd.args(&["-cf", "archive.tar", "locked/file.txt"]).run();
+
+    std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o755)).unwrap();
+    result
+        .failure()
+        .code_is(2)
+        .stderr_contains("locked/file.txt: Cannot stat: Permission denied")
+        .stderr_does_not_contain("os error");
+}
+
+#[test]
+#[cfg(unix)]
 fn test_create_archives_dangling_symlink() {
     let (at, mut ucmd) = at_and_ucmd!();
     at.write("a.txt", "a");

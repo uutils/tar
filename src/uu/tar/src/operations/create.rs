@@ -60,13 +60,17 @@ pub fn create_archive(
         // A missing operand is reported and skipped; the other operands are
         // still archived, as with GNU tar. `symlink_metadata` does not follow
         // symlinks, so a dangling symlink is not treated as missing.
-        let Ok(metadata) = path.symlink_metadata() else {
-            status_output.flush().map_err(TarError::Io)?;
-            report_recoverable(&TarError::CannotStat {
-                path: path.to_path_buf(),
-            })?;
-            missing_operand = true;
-            continue;
+        let metadata = match path.symlink_metadata() {
+            Ok(metadata) => metadata,
+            Err(source) => {
+                status_output.flush().map_err(TarError::Io)?;
+                report_recoverable(&TarError::CannotStat {
+                    path: path.to_path_buf(),
+                    source,
+                })?;
+                missing_operand = true;
+                continue;
+            }
         };
 
         if verbose {

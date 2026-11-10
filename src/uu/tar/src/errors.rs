@@ -37,7 +37,7 @@ pub enum TarError {
     FileNotFound { path: PathBuf },
 
     /// A file operand to archive cannot be stat'ed (missing, permission denied, ...)
-    #[error("{path}: Cannot stat: {}", strip_errno(.source))]
+    #[error("{path}: Cannot stat: {}", io_error_message(.source))]
     CannotStat { path: PathBuf, source: io::Error },
 
     /// Permission denied when accessing file
@@ -93,6 +93,16 @@ impl TarError {
             },
             _ => TarError::Io(err),
         }
+    }
+}
+
+/// The message for an I/O error, without the "(os error N)" suffix. A missing
+/// file reads "No such file or directory" on every platform, like GNU tar
+/// (Windows would otherwise say "The system cannot find the file specified").
+fn io_error_message(err: &io::Error) -> String {
+    match err.kind() {
+        io::ErrorKind::NotFound => "No such file or directory".to_string(),
+        _ => strip_errno(err),
     }
 }
 

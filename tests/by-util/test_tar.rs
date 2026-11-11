@@ -117,6 +117,153 @@ fn test_create_no_recursion() {
 }
 
 #[test]
+fn test_create_remove_files() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.mkdir_all("dir/sub");
+    at.write("dir/a.txt", "a");
+    at.write("dir/sub/b.txt", "b");
+    at.write("file.txt", "f");
+    at.write("kept.txt", "k");
+
+    ucmd.args(&["-cf", "archive.tar", "--remove-files", "dir", "file.txt"])
+        .succeeds()
+        .no_output();
+
+    assert!(!at.file_exists("file.txt"));
+    assert!(!at.dir_exists("dir"));
+    assert!(at.file_exists("kept.txt"));
+    let mut listing = new_ucmd!()
+        .arg("-tf")
+        .arg(at.plus("archive.tar"))
+        .succeeds()
+        .stdout_move_str()
+        .lines()
+        .map(|name| name.trim_end_matches('/').to_string())
+        .collect::<Vec<_>>();
+    listing.sort();
+    assert_eq!(
+        listing,
+        ["dir", "dir/a.txt", "dir/sub", "dir/sub/b.txt", "file.txt"]
+    );
+}
+
+#[test]
+fn test_create_remove_files_archived_twice() {
+    // A file is only removed once the whole archive is written, so it can be
+    // archived again through a later operand.
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.mkdir("dir");
+    at.write("dir/a.txt", "a");
+
+    ucmd.args(&[
+        "-cf",
+        "archive.tar",
+        "--remove-files",
+        "dir",
+        "dir/a.txt",
+        "dir/a.txt",
+    ])
+    .succeeds()
+    .no_output();
+
+    assert!(!at.dir_exists("dir"));
+    new_ucmd!()
+        .arg("-tf")
+        .arg(at.plus("archive.tar"))
+        .succeeds()
+        .stdout_is("dir/\ndir/a.txt\ndir/a.txt\ndir/a.txt\n");
+}
+
+#[test]
+fn test_create_remove_files_no_recursion() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.mkdir("empty");
+    at.mkdir("full");
+    at.write("full/a.txt", "a");
+
+    ucmd.args(&[
+        "-cf",
+        "archive.tar",
+        "--remove-files",
+        "--no-recursion",
+        "empty",
+        "full",
+    ])
+    .fails()
+    .code_is(2)
+    .stderr_contains(": full: Cannot rmdir: ")
+    .stderr_contains("Exiting with failure status due to previous errors");
+
+    assert!(!at.dir_exists("empty"));
+    assert!(at.file_exists("full/a.txt"));
+}
+
+#[test]
+#[cfg(unix)]
+fn test_create_remove_files_cannot_unlink() {
+    if rustix::process::geteuid().is_root() {
+        eprintln!("skipping: running as root");
+        return;
+    }
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.mkdir("locked");
+    at.write("locked/a.txt", "a");
+    at.write("b.txt", "b");
+    at.symlink_file("gone", "dangling");
+    at.set_mode("locked", 0o555);
+
+    ucmd.args(&[
+        "-cf",
+        "archive.tar",
+        "--remove-files",
+        "locked/a.txt",
+        "b.txt",
+        "dangling",
+    ])
+    .fails()
+    .code_is(2)
+    .stderr_contains(": locked/a.txt: Cannot unlink: Permission denied\n")
+    .stderr_contains("Exiting with failure status due to previous errors");
+
+    at.set_mode("locked", 0o755);
+    assert!(at.file_exists("locked/a.txt"));
+    assert!(!at.file_exists("b.txt"));
+    assert!(!at.is_symlink("dangling"));
+}
+
+#[test]
+fn test_create_remove_files_keeps_archive_inside_operand() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.mkdir("dir");
+    at.write("dir/a.txt", "a");
+
+    ucmd.args(&["-cf", "dir/archive.tar", "--remove-files", "dir"])
+        .fails()
+        .code_is(2)
+        .stderr_contains(": dir: Cannot rmdir: ");
+
+    assert!(!at.file_exists("dir/a.txt"));
+    new_ucmd!()
+        .arg("-tf")
+        .arg(at.plus("dir/archive.tar"))
+        .succeeds()
+        .stdout_contains("dir/a.txt\n");
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn test_create_remove_files_keeps_files_when_archive_fails() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.write("a.txt", "a");
+
+    ucmd.args(&["-cf", "/dev/full", "--remove-files", "a.txt"])
+        .fails()
+        .code_is(2);
+
+    assert!(at.file_exists("a.txt"));
+}
+
+#[test]
 fn test_create_single_file() {
     let (at, mut ucmd) = at_and_ucmd!();
 

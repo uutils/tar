@@ -35,11 +35,11 @@ fn is_posix_keystring(s: &str) -> bool {
     if s.is_empty() || s.starts_with('-') {
         return false;
     }
-    let valid_chars = "cxturvwfblmoz";
+    let valid_chars = "cxturvwfblmopz";
     // function letters: c=create, x=extract, t=list, u=update, r=append
     // modifier letters: v=verbose, w=interactive, f=file, b=blocking-factor,
     //                   l=one-file-system, m=modification-time, o=no-same-owner,
-    //                   z=gzip
+    //                   p=preserve-permissions, z=gzip
     s.chars().all(|c| valid_chars.contains(c)) && s.chars().any(|c| "cxtur".contains(c))
 }
 
@@ -160,13 +160,26 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
             uucore::error::USimpleError::new(64, "option requires an argument -- 'f'")
         })?;
 
+        // GNU tar preserves permissions by default only for the superuser
+        let preserve_permissions = if matches.get_flag("preserve-permissions") {
+            true
+        } else if matches.get_flag("no-same-permissions") {
+            false
+        } else {
+            is_superuser()
+        };
         let compression = explicit_compression.unwrap_or(CompressionMode::Auto);
         return if archive_path == Path::new("-") {
-            operations::extract::extract_archive(io::stdin(), verbose, compression)
+            operations::extract::extract_archive(
+                io::stdin(),
+                verbose,
+                preserve_permissions,
+                compression,
+            )
         } else {
             let file =
                 File::open(archive_path).map_err(|e| TarError::from_io_error(e, archive_path))?;
-            operations::extract::extract_archive(file, verbose, compression)
+            operations::extract::extract_archive(file, verbose, preserve_permissions, compression)
         };
     }
 
@@ -247,6 +260,16 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     ))
 }
 
+#[cfg(unix)]
+fn is_superuser() -> bool {
+    uucore::process::geteuid() == 0
+}
+
+#[cfg(not(unix))]
+fn is_superuser() -> bool {
+    false
+}
+
 #[allow(clippy::cognitive_complexity)]
 pub fn uu_app() -> Command {
     Command::new("tar (uutils)")
@@ -281,7 +304,11 @@ pub fn uu_app() -> Command {
             arg!(-v --verbose "Verbosely list files processed"),
             arg!(--"no-recursion" "Avoid descending automatically in directories"),
             // arg!(-h --dereference "Follow symlinks"),
-            // arg!(-p --"preserve-permissions" "Extract information about file permissions"),
+            arg!(-p --"preserve-permissions" "Extract information about file permissions (default for superuser)")
+                .visible_alias("same-permissions")
+                .overrides_with("no-same-permissions"),
+            arg!(--"no-same-permissions" "Apply the user's umask when extracting permissions from the archive (default for ordinary users)")
+                .overrides_with("preserve-permissions"),
             // Help
             arg!(--help "Print help information").action(ArgAction::Help),
             // Files to process

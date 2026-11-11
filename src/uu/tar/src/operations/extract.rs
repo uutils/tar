@@ -18,6 +18,9 @@ use uucore::error::UResult;
 /// # Arguments
 ///
 /// * `verbose` - Whether to print verbose output during extraction
+/// * `preserve_permissions` - Whether to give members the exact modes from the
+///   archive, setuid and sticky bits included, rather than clear the special
+///   bits and the bits in the umask
 ///
 /// # Errors
 ///
@@ -28,6 +31,7 @@ use uucore::error::UResult;
 pub fn extract_archive(
     input: impl Read,
     verbose: bool,
+    preserve_permissions: bool,
     compression: CompressionMode,
 ) -> UResult<()> {
     let reader = open_archive_reader(input, compression)?;
@@ -44,9 +48,17 @@ pub fn extract_archive(
 
     let mut warned_slashes = HashSet::new();
 
+    let umask = if preserve_permissions {
+        0
+    } else {
+        uucore::mode::get_umask()
+    };
+
     // Iterate through entries for verbose output and error handling
     for entry_result in archive.entries().map_err(TarError::CannotReadEntries)? {
         let mut entry = entry_result.map_err(TarError::CannotReadEntry)?;
+        entry.set_preserve_permissions(preserve_permissions);
+        entry.set_mask(umask);
 
         // Get the path before unpacking (clone it so we can use it after borrowing entry mutably)
         let path = entry

@@ -7,9 +7,12 @@ use crate::errors::TarError;
 use crate::CompressionMode;
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
-use std::io::{self, BufReader, Cursor, Read, Write};
+use std::io::{BufReader, Cursor, Read, Write};
 
 const GZIP_MAGIC: [u8; 2] = [0x1f, 0x8b];
+
+/// Zeros the archive is padded with, written a default record at a time.
+static ZEROS: [u8; crate::DEFAULT_RECORD_SIZE as usize] = [0; crate::DEFAULT_RECORD_SIZE as usize];
 
 pub(crate) fn open_archive_reader<'a, R>(
     input: R,
@@ -82,8 +85,12 @@ impl<W: Write> ArchiveWriter<W> {
     }
 
     pub(crate) fn finish(mut self) -> Result<(), TarError> {
-        let padding = self.written.next_multiple_of(self.record_size) - self.written;
-        io::copy(&mut io::repeat(0).take(padding), &mut self).map_err(TarError::Io)?;
+        let mut padding = self.written.next_multiple_of(self.record_size) - self.written;
+        while padding > 0 {
+            let len = padding.min(ZEROS.len() as u64) as usize;
+            self.write_all(&ZEROS[..len]).map_err(TarError::Io)?;
+            padding -= len as u64;
+        }
         match self.inner {
             ArchiveWriterInner::Plain(mut file) => file.flush().map_err(TarError::from),
             ArchiveWriterInner::Gzip(encoder) => {

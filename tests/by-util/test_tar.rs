@@ -117,6 +117,82 @@ fn test_create_no_recursion() {
 }
 
 #[test]
+fn test_create_pads_to_record_size() {
+    // Like GNU tar, the archive is padded to a whole record, 20 blocks by
+    // default: one 512-byte header, one data block and two zero blocks
+    // make 2048 bytes, rounded up to the record.
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.write("a.txt", "a");
+
+    ucmd.args(&["-cf", "default.tar", "a.txt"]).succeeds();
+    assert_eq!(at.read_bytes("default.tar").len(), 10240);
+
+    for (args, size) in [
+        (&["-b", "1"][..], 2048),
+        (&["-b", "3"], 3072),
+        (&["-b4"], 2048),
+        (&["--blocking-factor=5"], 2560),
+        (&["--blocking-factor", "64"], 32768),
+        // The last one given is used.
+        (&["-b", "20", "-b", "3"], 3072),
+    ] {
+        new_ucmd!()
+            .current_dir(at.as_string())
+            .args(&["-cf", "archive.tar"])
+            .args(args)
+            .arg("a.txt")
+            .succeeds()
+            .no_output();
+        assert_eq!(at.read_bytes("archive.tar").len(), size, "{args:?}");
+    }
+
+    // The POSIX key takes the blocking factor from the operands.
+    new_ucmd!()
+        .current_dir(at.as_string())
+        .args(&["cbf", "3", "key.tar", "a.txt"])
+        .succeeds();
+    assert_eq!(at.read_bytes("key.tar").len(), 3072);
+
+    // The padding is part of the archive, so it is ignored when reading.
+    new_ucmd!()
+        .args(&["-tf", "archive.tar", "-b", "7"])
+        .current_dir(at.as_string())
+        .succeeds()
+        .stdout_is("a.txt\n");
+}
+
+#[test]
+fn test_create_pads_before_compressing() {
+    use flate2::read::GzDecoder;
+
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.write("a.txt", "a");
+
+    ucmd.args(&["-czf", "archive.tar.gz", "-b", "3", "a.txt"])
+        .succeeds();
+    let mut tar = Vec::new();
+    GzDecoder::new(&at.read_bytes("archive.tar.gz")[..])
+        .read_to_end(&mut tar)
+        .unwrap();
+    assert_eq!(tar.len(), 3072);
+}
+
+#[test]
+fn test_create_invalid_blocking_factor() {
+    let (at, _ucmd) = at_and_ucmd!();
+    at.write("a.txt", "a");
+
+    for value in ["0", "-1", "x", "1.5", "2147483648"] {
+        new_ucmd!()
+            .current_dir(at.as_string())
+            .args(&["-cf", "archive.tar", "-b", value, "a.txt"])
+            .fails()
+            .code_is(2)
+            .stderr_contains(format!(": {value}: Invalid blocking factor"));
+    }
+}
+
+#[test]
 fn test_create_single_file() {
     let (at, mut ucmd) = at_and_ucmd!();
 
@@ -1156,24 +1232,29 @@ fn test_posix_and_dash_prefix_both_work() {
 }
 
 #[test]
-fn test_posix_b_matches_dash_prefix_failure() {
+fn test_posix_b_matches_dash_prefix() {
     let (at, mut ucmd) = at_and_ucmd!();
 
     at.write("file.txt", "hello");
 
-    // Dash-prefixed form currently rejects '-b'.
     new_ucmd!()
-        .args(&["-cbf", "20", "dash.tar", "file.txt"])
+        .args(&["-cb", "3", "-f", "dash.tar", "file.txt"])
+        .current_dir(at.as_string())
+        .succeeds();
+
+    // In the POSIX key, 'b' and 'f' take the operands in order.
+    ucmd.args(&["cbf", "3", "posix.tar", "file.txt"]).succeeds();
+
+    assert_eq!(at.read_bytes("dash.tar").len(), 3072);
+    assert_eq!(at.read_bytes("posix.tar"), at.read_bytes("dash.tar"));
+
+    // In a cluster, -b takes the rest of it as its value, like GNU tar.
+    new_ucmd!()
+        .args(&["-cbf", "20", "other.tar", "file.txt"])
         .current_dir(at.as_string())
         .fails()
-        .code_is(64)
-        .stderr_contains("unexpected argument '-b'");
-
-    // POSIX keystring form should fail with the same unsupported option.
-    ucmd.args(&["cbf", "20", "posix.tar", "file.txt"])
-        .fails()
-        .code_is(64)
-        .stderr_contains("unexpected argument '-b'");
+        .code_is(2)
+        .stderr_contains(": f: Invalid blocking factor");
 }
 
 // List operation tests

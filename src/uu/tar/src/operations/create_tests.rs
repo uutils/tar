@@ -4,6 +4,7 @@
 // file that was distributed with this source code.
 
 use super::*;
+use crate::DEFAULT_RECORD_SIZE;
 use std::io::{self, Write};
 use tar::Archive;
 use tempfile::{tempdir, TempDir};
@@ -34,6 +35,7 @@ fn test_create_archive_flush_failed() {
         false,
         false,
         true,
+        DEFAULT_RECORD_SIZE,
         CompressionMode::None,
     );
     assert!(res.is_err());
@@ -55,6 +57,7 @@ fn test_create_archive_gzip_flush_failed() {
         false,
         false,
         true,
+        DEFAULT_RECORD_SIZE,
         CompressionMode::Gzip,
     );
     assert!(res.is_err());
@@ -73,6 +76,7 @@ fn test_create_archive_with_zstd() {
         false,
         false,
         true,
+        DEFAULT_RECORD_SIZE,
         CompressionMode::Zstd,
     )
     .unwrap();

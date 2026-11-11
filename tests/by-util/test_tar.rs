@@ -117,6 +117,115 @@ fn test_create_no_recursion() {
 }
 
 #[test]
+fn test_create_files_from() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.mkdir("dir");
+    at.write("dir/c.txt", "c");
+    at.write("a.txt", "a");
+    at.write("b.txt", "b");
+    at.write("with space", "s");
+    // One name per line, blank lines skipped, spaces kept, no final newline.
+    at.write("list", "b.txt\n\nwith space\ndir");
+    at.write("list2", "a.txt\n");
+
+    // The names are archived where -T is given among the operands.
+    ucmd.args(&[
+        "-cf",
+        "archive.tar",
+        "a.txt",
+        "-T",
+        "list",
+        "b.txt",
+        "--files-from=list2",
+    ])
+    .succeeds()
+    .no_output();
+
+    let listing = new_ucmd!()
+        .arg("-tf")
+        .arg(at.plus("archive.tar"))
+        .succeeds()
+        .stdout_move_str()
+        .lines()
+        .map(|name| name.trim_end_matches('/').to_string())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        listing,
+        [
+            "a.txt",
+            "b.txt",
+            "with space",
+            "dir",
+            "dir/c.txt",
+            "b.txt",
+            "a.txt"
+        ]
+    );
+}
+
+#[test]
+fn test_create_files_from_stdin() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.write("a.txt", "a");
+
+    ucmd.args(&["-cf", "archive.tar", "-T", "-"])
+        .pipe_in("a.txt\n")
+        .succeeds()
+        .no_output();
+
+    new_ucmd!()
+        .arg("-tf")
+        .arg(at.plus("archive.tar"))
+        .succeeds()
+        .stdout_is("a.txt\n");
+}
+
+#[test]
+fn test_create_files_from_empty_list() {
+    // Unlike no operands at all, an empty list makes an empty archive.
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.touch("list");
+
+    ucmd.args(&["-cf", "archive.tar", "-T", "list"])
+        .succeeds()
+        .no_output();
+
+    new_ucmd!()
+        .arg("-tf")
+        .arg(at.plus("archive.tar"))
+        .succeeds()
+        .no_output();
+}
+
+#[test]
+fn test_create_files_from_errors() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.write("a.txt", "a");
+    at.write("list", "missing.txt\na.txt\n");
+
+    // A missing name is reported and the others are archived.
+    ucmd.args(&["-cf", "archive.tar", "-T", "list"])
+        .fails()
+        .code_is(2)
+        .stderr_contains(": missing.txt: Cannot stat: No such file or directory")
+        .stderr_contains("Exiting with failure status due to previous errors");
+    new_ucmd!()
+        .arg("-tf")
+        .arg(at.plus("archive.tar"))
+        .succeeds()
+        .stdout_is("a.txt\n");
+
+    // A missing list is fatal.
+    new_ucmd!()
+        .args(&["-cf", "other.tar", "-T", "nope", "a.txt"])
+        .current_dir(at.as_string())
+        .fails()
+        .code_is(2)
+        .stderr_contains(": nope: Cannot stat: No such file or directory")
+        .stderr_contains("Error is not recoverable: exiting now");
+}
+
+#[test]
 fn test_create_single_file() {
     let (at, mut ucmd) = at_and_ucmd!();
 

@@ -36,6 +36,14 @@ pub fn extract_archive(
 ) -> UResult<()> {
     let reader = open_archive_reader(input, compression)?;
     let mut archive = Archive::new(reader);
+    archive.set_preserve_permissions(preserve_permissions);
+    // The tar crate applies the mask only on Unix
+    #[cfg(unix)]
+    archive.set_mask(if preserve_permissions {
+        0
+    } else {
+        uucore::mode::get_umask()
+    });
     let mut out = BufWriter::new(io::stdout().lock());
 
     // Members that were refused are reported as they are met; like GNU tar, the
@@ -48,21 +56,9 @@ pub fn extract_archive(
 
     let mut warned_slashes = HashSet::new();
 
-    // The tar crate applies the mask only on Unix
-    #[cfg(unix)]
-    let umask = if preserve_permissions {
-        0
-    } else {
-        uucore::mode::get_umask()
-    };
-    #[cfg(not(unix))]
-    let umask = 0;
-
     // Iterate through entries for verbose output and error handling
     for entry_result in archive.entries().map_err(TarError::CannotReadEntries)? {
         let mut entry = entry_result.map_err(TarError::CannotReadEntry)?;
-        entry.set_preserve_permissions(preserve_permissions);
-        entry.set_mask(umask);
 
         // Get the path before unpacking (clone it so we can use it after borrowing entry mutably)
         let path = entry

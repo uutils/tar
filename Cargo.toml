@@ -21,7 +21,7 @@ build = "build.rs"
 
 [features]
 default = ["feat_common_core"]
-uudoc = ["zip"]
+uudoc = []
 
 feat_common_core = [
   "tar",
@@ -34,7 +34,6 @@ chrono = { version = "0.4.37", default-features = false, features = [
 clap = { version = "4.4", features = ["wrap_help", "cargo"] }
 ctor = "1.0.0"
 flate2 = { version = "1.1.10", default-features = false, features = ["zlib-rs"] }
-phf = "0.14.0"
 phf_codegen = "0.14.0"
 rand = { version = "0.10.0" }
 regex = "1.10.4"
@@ -45,16 +44,12 @@ thiserror = "2.0.3"
 uucore = { git = "https://github.com/uutils/coreutils" }
 uutests = { git = "https://github.com/uutils/coreutils" }
 xattr = "1.3.1"
-zip = "9.0"
 zstd = "0.14.0"
 
 [dependencies]
 clap = { workspace = true }
 ctor = { workspace = true }
-phf = { workspace = true }
 uucore = { workspace = true }
-uutests = { workspace = true }
-zip = { workspace = true, optional = true }
 
 tar = { optional = true, version = "0.0.1", package = "uu_tar", path = "src/uu/tar" }
 

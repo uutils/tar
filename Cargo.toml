@@ -10,7 +10,6 @@ license = "MIT"
 description = "tar ~ implemented as universal (cross-platform) utils, written in Rust"
 default-run = "tarapp"
 
-homepage = "https://github.com/uutils/tar"
 repository = "https://github.com/uutils/tar"
 readme = "README.md"
 keywords = ["tar", "uutils", "cross-platform", "cli", "utility"]

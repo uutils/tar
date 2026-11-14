@@ -23,6 +23,7 @@ use uucore::error::UResult;
 /// * `allow_absolute` - Allow absolute paths while creating archive
 /// * `verbose` - Whether to print verbose output during creation
 /// * `recursive` - Whether to add the contents of directories, not only the directories themselves
+/// * `record_size` - Size in bytes of the records the archive is padded to
 ///
 /// # Errors
 ///
@@ -31,6 +32,7 @@ use uucore::error::UResult;
 /// - Any input file cannot be read (a missing input file is reported and
 ///   skipped, and the archive is still written)
 /// - Files cannot be added due to I/O or permission errors
+#[allow(clippy::too_many_arguments)]
 pub fn create_archive(
     output: impl Write,
     status_output: impl Write,
@@ -38,13 +40,14 @@ pub fn create_archive(
     allow_absolute: bool,
     verbose: bool,
     recursive: bool,
+    record_size: u64,
     compression: CompressionMode,
 ) -> UResult<()> {
     let output = BufWriter::new(output);
     let mut status_output = BufWriter::new(status_output);
 
     // Create Builder instance
-    let writer = ArchiveWriter::new(output, compression)?;
+    let writer = ArchiveWriter::new(output, compression)?.with_record_size(record_size);
     let mut builder = Builder::new(writer);
     builder.preserve_absolute(allow_absolute);
     // Like GNU tar without -h/--dereference, archive symlinks as symlinks,

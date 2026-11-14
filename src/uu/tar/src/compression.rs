@@ -11,6 +11,9 @@ use std::io::{BufReader, Cursor, Read, Write};
 
 const GZIP_MAGIC: [u8; 2] = [0x1f, 0x8b];
 
+/// Zeros the archive is padded with, written a default record at a time.
+static ZEROS: [u8; crate::DEFAULT_RECORD_SIZE as usize] = [0; crate::DEFAULT_RECORD_SIZE as usize];
+
 pub(crate) fn open_archive_reader<'a, R>(
     input: R,
     mode: CompressionMode,
@@ -33,8 +36,14 @@ where
     Ok(reader)
 }
 
+/// Writes the tar stream, compressed or not, and pads it with zeros to a
+/// whole number of records when finished, like GNU tar. The padding is part
+/// of the tar stream, so it goes through the compressor.
 pub(crate) struct ArchiveWriter<W: Write> {
     inner: ArchiveWriterInner<W>,
+    /// Bytes of the tar stream written so far, before compression
+    written: u64,
+    record_size: u64,
 }
 
 enum ArchiveWriterInner<W: Write> {
@@ -62,10 +71,26 @@ impl<W: Write> ArchiveWriter<W> {
             }
         };
 
-        Ok(Self { inner })
+        Ok(Self {
+            inner,
+            written: 0,
+            record_size: crate::DEFAULT_RECORD_SIZE,
+        })
     }
 
-    pub(crate) fn finish(self) -> Result<(), TarError> {
+    /// Sets the size of a record in bytes, which the archive is padded to.
+    pub(crate) fn with_record_size(mut self, record_size: u64) -> Self {
+        self.record_size = record_size;
+        self
+    }
+
+    pub(crate) fn finish(mut self) -> Result<(), TarError> {
+        let mut padding = self.written.next_multiple_of(self.record_size) - self.written;
+        while padding > 0 {
+            let len = padding.min(ZEROS.len() as u64) as usize;
+            self.write_all(&ZEROS[..len]).map_err(TarError::Io)?;
+            padding -= len as u64;
+        }
         match self.inner {
             ArchiveWriterInner::Plain(mut file) => file.flush().map_err(TarError::from),
             ArchiveWriterInner::Gzip(encoder) => {
@@ -82,11 +107,13 @@ impl<W: Write> ArchiveWriter<W> {
 
 impl<W: Write> Write for ArchiveWriter<W> {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        match &mut self.inner {
+        let written = match &mut self.inner {
             ArchiveWriterInner::Plain(file) => file.write(buf),
             ArchiveWriterInner::Gzip(encoder) => encoder.write(buf),
             ArchiveWriterInner::Zstd(encoder) => encoder.write(buf),
-        }
+        }?;
+        self.written += written as u64;
+        Ok(written)
     }
 
     fn flush(&mut self) -> std::io::Result<()> {

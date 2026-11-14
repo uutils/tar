@@ -18,6 +18,13 @@ use uucore::format_usage;
 const ABOUT: &str = "an archiving utility";
 const USAGE: &str = "tar key [FILE...]\n       tar {-c|-t|-x} [-v] -f ARCHIVE [FILE...]";
 
+/// Size of a tar block in bytes.
+const BLOCK_SIZE: u64 = 512;
+
+/// Size in bytes of the records an archive is padded to, without -b: 20
+/// blocks, like GNU tar.
+pub const DEFAULT_RECORD_SIZE: u64 = 20 * BLOCK_SIZE;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CompressionMode {
     Auto,
@@ -75,9 +82,8 @@ fn expand_posix_keystring(args: Vec<std::ffi::OsString>) -> Vec<std::ffi::OsStri
                 }
             }
             'b' => {
-                // Preserve parity with dash-style parsing by forwarding '-b'
-                // and its operand (when present). Since '-b' is currently
-                // unsupported, clap will report it as an unknown argument.
+                // Forward '-b' and its operand (when present), like dash-style
+                // parsing.
                 result.push(std::ffi::OsString::from("-b"));
                 if file_idx < file_operands.len() {
                     result.push(file_operands[file_idx].clone());
@@ -146,6 +152,10 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     let verbose = matches.get_flag("verbose");
     let allow_absolute = matches.get_flag("absolute-names");
     let recursive = !matches.get_flag("no-recursion");
+    let record_size = match matches.get_one::<String>("blocking-factor") {
+        Some(blocking_factor) => parse_blocking_factor(blocking_factor)? * BLOCK_SIZE,
+        None => DEFAULT_RECORD_SIZE,
+    };
     let explicit_compression = if matches.get_flag("gzip") {
         Some(CompressionMode::Gzip)
     } else if matches.get_flag("zstd") {
@@ -203,6 +213,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
                     allow_absolute,
                     verbose,
                     recursive,
+                    record_size,
                     compression,
                 )
             }
@@ -219,6 +230,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
                 allow_absolute,
                 verbose,
                 recursive,
+                record_size,
                 compression,
             )
         };
@@ -247,6 +259,19 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     ))
 }
 
+/// Parses the number of blocks per record given to -b, which GNU tar takes
+/// from 1 to `i32::MAX`.
+fn parse_blocking_factor(value: &str) -> UResult<u64> {
+    value
+        .parse::<i32>()
+        .ok()
+        .filter(|&blocks| blocks > 0)
+        .and_then(|blocks| u64::try_from(blocks).ok())
+        .ok_or_else(|| {
+            uucore::error::USimpleError::new(2, format!("{value}: Invalid blocking factor"))
+        })
+}
+
 #[allow(clippy::cognitive_complexity)]
 pub fn uu_app() -> Command {
     Command::new("tar (uutils)")
@@ -268,6 +293,9 @@ pub fn uu_app() -> Command {
             // Archive file
             arg!(-f --file <ARCHIVE> "Use archive file or device ARCHIVE")
                 .value_parser(clap::value_parser!(PathBuf)),
+            arg!(-b --"blocking-factor" <BLOCKS> "BLOCKS x 512 bytes per record")
+                .allow_hyphen_values(true)
+                .overrides_with("blocking-factor"),
             arg!(
                 -P --"absolute-names"
                 "Don't strip leading '/'s from file names"

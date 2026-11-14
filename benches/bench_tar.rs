@@ -6,8 +6,8 @@
 use std::fs::{self, File};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
-use tar::CompressionMode;
 use tar::operations;
+use tar::{CompressionMode, DEFAULT_RECORD_SIZE};
 use tempfile::TempDir;
 
 fn main() {
@@ -49,6 +49,7 @@ fn build_archive(archive_path: &Path, source_dir: &Path) {
         true,
         false,
         true,
+        DEFAULT_RECORD_SIZE,
         CompressionMode::None,
     )
     .unwrap();
@@ -78,6 +79,7 @@ fn create_archive_10_files(bencher: divan::Bencher) {
             true,
             false,
             true,
+            DEFAULT_RECORD_SIZE,
             CompressionMode::None,
         )
         .unwrap();
@@ -104,6 +106,7 @@ fn create_archive_100_files(bencher: divan::Bencher) {
             true,
             false,
             true,
+            DEFAULT_RECORD_SIZE,
             CompressionMode::None,
         )
         .unwrap();
@@ -130,6 +133,7 @@ fn create_archive_directory(bencher: divan::Bencher) {
             true,
             false,
             true,
+            DEFAULT_RECORD_SIZE,
             CompressionMode::None,
         )
         .unwrap();

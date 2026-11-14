@@ -95,6 +95,33 @@ fn expand_posix_keystring(args: Vec<std::ffi::OsString>) -> Vec<std::ffi::OsStri
     result
 }
 
+/// Returns true when clap rejected a value because it was missing (for example
+/// `tar -cf` with nothing after `-f`). `--file` is the only option taking a
+/// value, and explicitly empty values (`-f ""` or an empty file operand) are
+/// accepted by the parsers, so an empty invalid value can only mean this.
+fn is_missing_value(err: &clap::Error) -> bool {
+    use clap::error::{ContextKind, ContextValue};
+    matches!(
+        err.get(ContextKind::InvalidValue),
+        Some(ContextValue::String(value)) if value.is_empty()
+    )
+}
+
+/// Parses a path value without rejecting the empty string, so that an empty
+/// name fails later with "Cannot open" / "Cannot stat" like GNU tar instead
+/// of a usage error.
+fn path_value_parser() -> impl clap::builder::TypedValueParser<Value = PathBuf> {
+    clap::builder::TypedValueParser::map(clap::builder::OsStringValueParser::new(), PathBuf::from)
+}
+
+/// Builds a usage error with the given exit status. Like GNU tar, it is not
+/// followed by "Error is not recoverable": recording the code first tells the
+/// binary that this is not a fatal runtime error.
+fn usage_error(code: i32, msg: impl Into<String>) -> Box<dyn uucore::error::UError> {
+    uucore::error::set_exit_code(code);
+    uucore::error::USimpleError::new(code, msg)
+}
+
 #[uucore::main]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     // Collect args - the test framework may add util_name as args[1], so skip it if present
@@ -133,11 +160,14 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
                         | clap::error::ErrorKind::TooFewValues
                         | clap::error::ErrorKind::TooManyValues
                         | clap::error::ErrorKind::WrongNumberOfValues => 64,
+                        // `-f` with no archive name: GNU tar reports
+                        // "option requires an argument" and exits 64.
+                        clap::error::ErrorKind::InvalidValue if is_missing_value(&err) => 64,
                         clap::error::ErrorKind::InvalidValue
                         | clap::error::ErrorKind::ValueValidation => 2,
                         _ => 2,
                     };
-                    return Err(uucore::error::USimpleError::new(code, err.to_string()));
+                    return Err(usage_error(code, err.to_string()));
                 }
             }
         }
@@ -182,7 +212,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
             .unwrap_or_default();
 
         if files.is_empty() {
-            return Err(uucore::error::USimpleError::new(
+            return Err(usage_error(
                 2,
                 "Cowardly refusing to create an empty archive",
             ));
@@ -241,7 +271,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     }
 
     // If no operation specified, show error
-    Err(uucore::error::USimpleError::new(
+    Err(usage_error(
         2,
         "You must specify one of the '-c', '-x', or '-t' options",
     ))
@@ -267,7 +297,7 @@ pub fn uu_app() -> Command {
                 .conflicts_with_all(["create", "list"]),
             // Archive file
             arg!(-f --file <ARCHIVE> "Use archive file or device ARCHIVE")
-                .value_parser(clap::value_parser!(PathBuf)),
+                .value_parser(path_value_parser()),
             arg!(
                 -P --"absolute-names"
                 "Don't strip leading '/'s from file names"
@@ -287,7 +317,7 @@ pub fn uu_app() -> Command {
             // Files to process
             arg!([files]... "Files to archive or extract")
                 .action(ArgAction::Append)
-                .value_parser(clap::value_parser!(PathBuf)),
+                .value_parser(path_value_parser()),
         ])
 }
 

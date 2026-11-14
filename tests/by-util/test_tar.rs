@@ -766,6 +766,109 @@ fn test_extract_nested_read_only_directories() {
 }
 
 #[test]
+fn test_extract_keeps_directory_mtime() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.mkdir("out");
+
+    let mut tar_bytes = Vec::new();
+    {
+        let mut builder = TarRsBuilder::new(&mut tar_bytes);
+        let mut header = TarRsHeader::new_gnu();
+        header.set_entry_type(tar_rs_crate::EntryType::Directory);
+        header.set_mode(0o755);
+        header.set_mtime(1_000_000_000);
+        header.set_size(0);
+        builder
+            .append_data(&mut header, "dir/", std::io::empty())
+            .unwrap();
+        let mut header = TarRsHeader::new_gnu();
+        header.set_mode(0o644);
+        header.set_mtime(1_000_000_000);
+        header.set_size(1);
+        builder
+            .append_data(&mut header, "dir/f", Cursor::new("x"))
+            .unwrap();
+        builder.finish().unwrap();
+    }
+    at.write_bytes("dir.tar", &tar_bytes);
+
+    ucmd.args(&["-xf", "../dir.tar"])
+        .current_dir(at.plus("out"))
+        .succeeds();
+
+    let mtime = at.metadata("out/dir").modified().unwrap();
+    assert_eq!(
+        mtime,
+        std::time::UNIX_EPOCH + std::time::Duration::from_secs(1_000_000_000)
+    );
+}
+
+#[test]
+fn test_extract_directory_mtime_with_dot_slash_member() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.mkdir("out");
+
+    let mut tar_bytes = Vec::new();
+    {
+        let mut builder = TarRsBuilder::new(&mut tar_bytes);
+        for name in ["a/", "./a/b/"] {
+            let mut header = TarRsHeader::new_gnu();
+            header.as_old_mut().name[..name.len()].copy_from_slice(name.as_bytes());
+            header.set_entry_type(tar_rs_crate::EntryType::Directory);
+            header.set_mode(0o755);
+            header.set_mtime(1_000_000_000);
+            header.set_size(0);
+            header.set_cksum();
+            builder.append(&header, std::io::empty()).unwrap();
+        }
+        builder.finish().unwrap();
+    }
+    at.write_bytes("dir.tar", &tar_bytes);
+
+    ucmd.args(&["-xf", "../dir.tar"])
+        .current_dir(at.plus("out"))
+        .succeeds();
+
+    let expected = std::time::UNIX_EPOCH + std::time::Duration::from_secs(1_000_000_000);
+    assert_eq!(at.metadata("out/a").modified().unwrap(), expected);
+    assert_eq!(at.metadata("out/a/b").modified().unwrap(), expected);
+}
+
+#[test]
+fn test_extract_keeps_negative_directory_mtime() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.mkdir("out");
+
+    // GNU tar stores a negative time in base-256
+    let mut mtime = [0xff; 12];
+    mtime[4..].copy_from_slice(&(-86_400_i64).to_be_bytes());
+
+    let mut tar_bytes = Vec::new();
+    {
+        let mut builder = TarRsBuilder::new(&mut tar_bytes);
+        let mut header = TarRsHeader::new_gnu();
+        header.set_path("dir/").unwrap();
+        header.set_entry_type(tar_rs_crate::EntryType::Directory);
+        header.set_mode(0o755);
+        header.set_size(0);
+        header.as_old_mut().mtime = mtime;
+        header.set_cksum();
+        builder.append(&header, std::io::empty()).unwrap();
+        builder.finish().unwrap();
+    }
+    at.write_bytes("dir.tar", &tar_bytes);
+
+    ucmd.args(&["-xf", "../dir.tar"])
+        .current_dir(at.plus("out"))
+        .succeeds();
+
+    assert_eq!(
+        at.metadata("out/dir").modified().unwrap(),
+        std::time::UNIX_EPOCH - std::time::Duration::from_secs(86_400)
+    );
+}
+
+#[test]
 fn test_extract_nonexistent_archive() {
     new_ucmd!()
         .args(&["-xf", "nonexistent.tar"])

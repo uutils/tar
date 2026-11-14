@@ -144,6 +144,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     };
 
     let verbose = matches.get_flag("verbose");
+    let to_stdout = matches.get_flag("to-stdout");
     let allow_absolute = matches.get_flag("absolute-names");
     let recursive = !matches.get_flag("no-recursion");
     let explicit_compression = if matches.get_flag("gzip") {
@@ -162,11 +163,11 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
 
         let compression = explicit_compression.unwrap_or(CompressionMode::Auto);
         return if archive_path == Path::new("-") {
-            operations::extract::extract_archive(io::stdin(), verbose, compression)
+            operations::extract::extract_archive(io::stdin(), verbose, to_stdout, compression)
         } else {
             let file =
                 File::open(archive_path).map_err(|e| TarError::from_io_error(e, archive_path))?;
-            operations::extract::extract_archive(file, verbose, compression)
+            operations::extract::extract_archive(file, verbose, to_stdout, compression)
         };
     }
 
@@ -272,6 +273,7 @@ pub fn uu_app() -> Command {
                 -P --"absolute-names"
                 "Don't strip leading '/'s from file names"
             ),
+            arg!(-O --"to-stdout" "Extract files to standard output"),
             // Compression options
             arg!(-z --gzip "Filter through gzip").conflicts_with("zstd"),
             // arg!(-j --bzip2 "Filter through bzip2"),

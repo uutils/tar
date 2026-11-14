@@ -765,6 +765,114 @@ fn test_extract_nested_read_only_directories() {
     assert_eq!(child & 0o777, 0o555);
 }
 
+/// Writes `modes.tar` with a file of mode 777, a setuid file and a directory
+/// of mode 1777, for the permission tests.
+#[cfg(unix)]
+fn write_modes_archive(at: &uutests::util::AtPath) {
+    let mut tar_bytes = Vec::new();
+    {
+        let mut builder = TarRsBuilder::new(&mut tar_bytes);
+        for (name, mode) in [("f777", 0o777), ("setuid", 0o4755)] {
+            let mut header = TarRsHeader::new_gnu();
+            header.set_mode(mode);
+            header.set_size(1);
+            builder
+                .append_data(&mut header, name, Cursor::new("x"))
+                .unwrap();
+        }
+        let mut header = TarRsHeader::new_gnu();
+        header.set_entry_type(tar_rs_crate::EntryType::Directory);
+        header.set_mode(0o1777);
+        header.set_size(0);
+        builder
+            .append_data(&mut header, "sticky/", std::io::empty())
+            .unwrap();
+        builder.finish().unwrap();
+    }
+    at.write_bytes("modes.tar", &tar_bytes);
+}
+
+/// Extracts `modes.tar` into a new directory `dir` with the given umask and
+/// options, and returns the modes of the extracted members.
+#[cfg(unix)]
+fn extract_modes(at: &uutests::util::AtPath, dir: &str, umask: u32, args: &[&str]) -> [u32; 3] {
+    use std::os::unix::fs::PermissionsExt;
+
+    at.mkdir(dir);
+    new_ucmd!()
+        .args(args)
+        .arg("../modes.tar")
+        .umask(umask as _)
+        .current_dir(at.plus(dir))
+        .succeeds()
+        .no_output();
+    ["f777", "setuid", "sticky"]
+        .map(|name| at.metadata(&format!("{dir}/{name}")).permissions().mode() & 0o7777)
+}
+
+/// Whether the tests run as root, for whom GNU tar preserves permissions by
+/// default.
+#[cfg(unix)]
+fn running_as_root(at: &uutests::util::AtPath) -> bool {
+    use std::os::unix::fs::MetadataExt;
+    at.metadata(".").uid() == 0
+}
+
+#[test]
+#[cfg(unix)]
+fn test_extract_applies_umask() {
+    let (at, _ucmd) = at_and_ucmd!();
+    if running_as_root(&at) {
+        return;
+    }
+    write_modes_archive(&at);
+
+    assert_eq!(extract_modes(&at, "a", 0o022, &["-xf"]), [0o755; 3]);
+    assert_eq!(extract_modes(&at, "b", 0o077, &["-xf"]), [0o700; 3]);
+    assert_eq!(
+        extract_modes(&at, "c", 0o022, &["--no-same-permissions", "-xf"]),
+        [0o755; 3]
+    );
+}
+
+#[test]
+#[cfg(unix)]
+fn test_extract_preserve_permissions() {
+    let (at, _ucmd) = at_and_ucmd!();
+    write_modes_archive(&at);
+    let preserved = [0o777, 0o4755, 0o1777];
+
+    assert_eq!(extract_modes(&at, "a", 0o077, &["-p", "-xf"]), preserved);
+    assert_eq!(
+        extract_modes(&at, "b", 0o077, &["--preserve-permissions", "-xf"]),
+        preserved
+    );
+    assert_eq!(
+        extract_modes(&at, "c", 0o077, &["--same-permissions", "-xf"]),
+        preserved
+    );
+    assert_eq!(extract_modes(&at, "d", 0o077, &["xpf"]), preserved);
+}
+
+#[test]
+#[cfg(unix)]
+fn test_extract_last_permissions_option_wins() {
+    let (at, _ucmd) = at_and_ucmd!();
+    if running_as_root(&at) {
+        return;
+    }
+    write_modes_archive(&at);
+
+    assert_eq!(
+        extract_modes(&at, "a", 0o022, &["-p", "--no-same-permissions", "-xf"]),
+        [0o755; 3]
+    );
+    assert_eq!(
+        extract_modes(&at, "b", 0o022, &["--no-same-permissions", "-p", "-xf"]),
+        [0o777, 0o4755, 0o1777]
+    );
+}
+
 #[test]
 fn test_extract_nonexistent_archive() {
     new_ucmd!()

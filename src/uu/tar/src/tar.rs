@@ -8,9 +8,9 @@ pub mod errors;
 pub mod operations;
 
 use crate::errors::TarError;
-use clap::{arg, crate_version, ArgAction, Command};
-use std::fs::File;
-use std::io::{self, IsTerminal};
+use clap::{arg, crate_version, ArgAction, ArgMatches, Command};
+use std::fs::{self, File};
+use std::io::{self, IsTerminal, Read};
 use std::path::{Path, PathBuf};
 use uucore::error::UResult;
 use uucore::format_usage;
@@ -176,12 +176,11 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
             uucore::error::USimpleError::new(64, "option requires an argument -- 'f'")
         })?;
 
-        let files: Vec<&Path> = matches
-            .get_many::<PathBuf>("files")
-            .map(|v| v.map(|p| p.as_path()).collect())
-            .unwrap_or_default();
+        let files = files_to_archive(&matches)?;
+        let files: Vec<&Path> = files.iter().map(PathBuf::as_path).collect();
 
-        if files.is_empty() {
+        // An empty -T list still makes an (empty) archive, like GNU tar.
+        if files.is_empty() && !matches.contains_id("files-from") {
             return Err(uucore::error::USimpleError::new(
                 2,
                 "Cowardly refusing to create an empty archive",
@@ -247,6 +246,53 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     ))
 }
 
+/// The files to archive: the operands, with the names read from each
+/// -T/--files-from list put where the option was given.
+fn files_to_archive(matches: &ArgMatches) -> UResult<Vec<PathBuf>> {
+    let mut files: Vec<(usize, PathBuf)> = Vec::new();
+    if let (Some(indices), Some(operands)) = (
+        matches.indices_of("files"),
+        matches.get_many::<PathBuf>("files"),
+    ) {
+        files.extend(indices.zip(operands.cloned()));
+    }
+    if let (Some(indices), Some(lists)) = (
+        matches.indices_of("files-from"),
+        matches.get_many::<PathBuf>("files-from"),
+    ) {
+        for (index, list) in indices.zip(lists) {
+            files.extend(read_file_list(list)?.into_iter().map(|name| (index, name)));
+        }
+    }
+    // The sort is stable, so the names of a list keep their order.
+    files.sort_by_key(|(index, _)| *index);
+    Ok(files.into_iter().map(|(_, name)| name).collect())
+}
+
+/// Reads the file names listed one per line in `list`, or in standard input
+/// for `-`. Blank lines are skipped, and the other lines are taken as they
+/// are, spaces included.
+fn read_file_list(list: &Path) -> UResult<Vec<PathBuf>> {
+    let mut content = Vec::new();
+    let read = if list == Path::new("-") {
+        io::stdin().read_to_end(&mut content).map(|_| ())
+    } else {
+        fs::read(list).map(|bytes| content = bytes)
+    };
+    read.map_err(|source| match source.kind() {
+        io::ErrorKind::NotFound => TarError::CannotStat {
+            path: list.to_path_buf(),
+            source,
+        },
+        _ => TarError::from_io_error(source, list),
+    })?;
+    content
+        .split(|&byte| byte == b'\n')
+        .filter(|line| !line.is_empty())
+        .map(|line| Ok(PathBuf::from(uucore::os_str_from_bytes(line)?.into_owned())))
+        .collect()
+}
+
 #[allow(clippy::cognitive_complexity)]
 pub fn uu_app() -> Command {
     Command::new("tar (uutils)")
@@ -280,6 +326,9 @@ pub fn uu_app() -> Command {
             // Common options
             arg!(-v --verbose "Verbosely list files processed"),
             arg!(--"no-recursion" "Avoid descending automatically in directories"),
+            arg!(-T --"files-from" <FILE> "Get names to archive from FILE, one per line")
+                .action(ArgAction::Append)
+                .value_parser(clap::value_parser!(PathBuf)),
             // arg!(-h --dereference "Follow symlinks"),
             // arg!(-p --"preserve-permissions" "Extract information about file permissions"),
             // Help

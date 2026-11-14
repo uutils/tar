@@ -34,6 +34,8 @@ fn test_create_archive_flush_failed() {
         false,
         false,
         true,
+        false,
+        None,
         CompressionMode::None,
     );
     assert!(res.is_err());
@@ -55,6 +57,8 @@ fn test_create_archive_gzip_flush_failed() {
         false,
         false,
         true,
+        false,
+        None,
         CompressionMode::Gzip,
     );
     assert!(res.is_err());
@@ -73,6 +77,8 @@ fn test_create_archive_with_zstd() {
         false,
         false,
         true,
+        false,
+        None,
         CompressionMode::Zstd,
     )
     .unwrap();

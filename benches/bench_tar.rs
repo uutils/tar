@@ -49,6 +49,8 @@ fn build_archive(archive_path: &Path, source_dir: &Path) {
         true,
         false,
         true,
+        false,
+        None,
         CompressionMode::None,
     )
     .unwrap();
@@ -78,6 +80,8 @@ fn create_archive_10_files(bencher: divan::Bencher) {
             true,
             false,
             true,
+            false,
+            None,
             CompressionMode::None,
         )
         .unwrap();
@@ -104,6 +108,8 @@ fn create_archive_100_files(bencher: divan::Bencher) {
             true,
             false,
             true,
+            false,
+            None,
             CompressionMode::None,
         )
         .unwrap();
@@ -130,6 +136,8 @@ fn create_archive_directory(bencher: divan::Bencher) {
             true,
             false,
             true,
+            false,
+            None,
             CompressionMode::None,
         )
         .unwrap();

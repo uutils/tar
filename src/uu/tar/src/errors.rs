@@ -76,6 +76,14 @@ pub enum TarError {
     #[error("{path}: Member name contains '..'")]
     MemberNameContainsDotDot { path: PathBuf },
 
+    /// A file cannot be removed after it was archived (--remove-files)
+    #[error("{path}: Cannot unlink: {}", io_error_message(.source))]
+    CannotUnlink { path: PathBuf, source: io::Error },
+
+    /// A directory cannot be removed after it was archived (--remove-files)
+    #[error("{path}: Cannot rmdir: {}", io_error_message(.source))]
+    CannotRmdir { path: PathBuf, source: io::Error },
+
     /// Errors that were reported earlier and recovered from
     #[error("Exiting with failure status due to previous errors")]
     PreviousErrors,

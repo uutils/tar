@@ -25,6 +25,10 @@ const BLOCK_SIZE: u64 = 512;
 /// blocks, like GNU tar.
 pub const DEFAULT_RECORD_SIZE: u64 = 20 * BLOCK_SIZE;
 
+/// Largest -b accepted, for 1 GiB records, so that a typo cannot pad a small
+/// archive with up to 1 TiB of zeros.
+const MAX_BLOCKING_FACTOR: u64 = 2 * 1024 * 1024;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CompressionMode {
     Auto,
@@ -198,6 +202,12 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
             ));
         }
 
+        let options = operations::create::CreateOptions {
+            allow_absolute,
+            verbose,
+            recursive,
+            record_size,
+        };
         let compression = explicit_compression.unwrap_or(CompressionMode::None);
         let output_is_stdout = archive_path == Path::new("-");
         return if output_is_stdout {
@@ -210,10 +220,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
                     output,
                     status_output,
                     &files,
-                    allow_absolute,
-                    verbose,
-                    recursive,
-                    record_size,
+                    &options,
                     compression,
                 )
             }
@@ -223,16 +230,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
                 source: e,
             })?;
             let status_output = io::stdout().lock();
-            operations::create::create_archive(
-                output,
-                status_output,
-                &files,
-                allow_absolute,
-                verbose,
-                recursive,
-                record_size,
-                compression,
-            )
+            operations::create::create_archive(output, status_output, &files, &options, compression)
         };
     }
 
@@ -259,17 +257,12 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     ))
 }
 
-/// Parses the number of blocks per record given to -b, which GNU tar takes
-/// from 1 to `i32::MAX`.
-fn parse_blocking_factor(value: &str) -> UResult<u64> {
-    value
-        .parse::<i32>()
-        .ok()
-        .filter(|&blocks| blocks > 0)
-        .and_then(|blocks| u64::try_from(blocks).ok())
-        .ok_or_else(|| {
-            uucore::error::USimpleError::new(2, format!("{value}: Invalid blocking factor"))
-        })
+/// Parses the number of blocks per record given to -b.
+fn parse_blocking_factor(value: &str) -> Result<u64, TarError> {
+    match value.parse() {
+        Ok(blocks @ 1..=MAX_BLOCKING_FACTOR) => Ok(blocks),
+        _ => Err(TarError::InvalidBlockingFactor(value.to_string())),
+    }
 }
 
 #[allow(clippy::cognitive_complexity)]

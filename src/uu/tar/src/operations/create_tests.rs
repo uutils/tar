@@ -9,6 +9,13 @@ use std::io::{self, Write};
 use tar::Archive;
 use tempfile::{tempdir, TempDir};
 
+const OPTIONS: CreateOptions = CreateOptions {
+    allow_absolute: false,
+    verbose: false,
+    recursive: true,
+    record_size: DEFAULT_RECORD_SIZE,
+};
+
 struct FailFlushWriter;
 impl Write for FailFlushWriter {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
@@ -32,10 +39,7 @@ fn test_create_archive_flush_failed() {
         output,
         status_output,
         &[file_path.as_path()],
-        false,
-        false,
-        true,
-        DEFAULT_RECORD_SIZE,
+        &OPTIONS,
         CompressionMode::None,
     );
     assert!(res.is_err());
@@ -54,10 +58,7 @@ fn test_create_archive_gzip_flush_failed() {
         output,
         status_output,
         &[file_path.as_path()],
-        false,
-        false,
-        true,
-        DEFAULT_RECORD_SIZE,
+        &OPTIONS,
         CompressionMode::Gzip,
     );
     assert!(res.is_err());
@@ -73,10 +74,7 @@ fn test_create_archive_with_zstd() {
         fs::File::create("archive.tar.zst").unwrap(),
         io::sink(),
         &[Path::new("file.txt")],
-        false,
-        false,
-        true,
-        DEFAULT_RECORD_SIZE,
+        &OPTIONS,
         CompressionMode::Zstd,
     )
     .unwrap();

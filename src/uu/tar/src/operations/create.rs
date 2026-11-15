@@ -14,16 +14,24 @@ use std::path::{self, Path, PathBuf};
 use tar::Builder;
 use uucore::error::UResult;
 
+/// Options for [`create_archive`]
+pub struct CreateOptions {
+    /// Allow absolute paths while creating archive
+    pub allow_absolute: bool,
+    /// Whether to print verbose output during creation
+    pub verbose: bool,
+    /// Whether to add the contents of directories, not only the directories themselves
+    pub recursive: bool,
+    /// Size in bytes of the records the archive is padded to
+    pub record_size: u64,
+}
+
 /// Create a tar archive from the specified files
 ///
 /// # Arguments
 ///
 /// * `output` - Destination where the tar archive should be written
 /// * `files` - Slice of file paths to add to the archive
-/// * `allow_absolute` - Allow absolute paths while creating archive
-/// * `verbose` - Whether to print verbose output during creation
-/// * `recursive` - Whether to add the contents of directories, not only the directories themselves
-/// * `record_size` - Size in bytes of the records the archive is padded to
 ///
 /// # Errors
 ///
@@ -32,17 +40,19 @@ use uucore::error::UResult;
 /// - Any input file cannot be read (a missing input file is reported and
 ///   skipped, and the archive is still written)
 /// - Files cannot be added due to I/O or permission errors
-#[allow(clippy::too_many_arguments)]
 pub fn create_archive(
     output: impl Write,
     status_output: impl Write,
     files: &[&Path],
-    allow_absolute: bool,
-    verbose: bool,
-    recursive: bool,
-    record_size: u64,
+    options: &CreateOptions,
     compression: CompressionMode,
 ) -> UResult<()> {
+    let &CreateOptions {
+        allow_absolute,
+        verbose,
+        recursive,
+        record_size,
+    } = options;
     let output = BufWriter::new(output);
     let mut status_output = BufWriter::new(status_output);
 

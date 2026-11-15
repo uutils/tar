@@ -7,8 +7,16 @@ use std::fs::{self, File};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use tar::operations;
+use tar::operations::create::CreateOptions;
 use tar::{CompressionMode, DEFAULT_RECORD_SIZE};
 use tempfile::TempDir;
+
+const OPTIONS: CreateOptions = CreateOptions {
+    allow_absolute: true,
+    verbose: false,
+    recursive: true,
+    record_size: DEFAULT_RECORD_SIZE,
+};
 
 fn main() {
     divan::main();
@@ -46,10 +54,7 @@ fn build_archive(archive_path: &Path, source_dir: &Path) {
         output,
         status_output,
         &refs,
-        true,
-        false,
-        true,
-        DEFAULT_RECORD_SIZE,
+        &OPTIONS,
         CompressionMode::None,
     )
     .unwrap();
@@ -76,10 +81,7 @@ fn create_archive_10_files(bencher: divan::Bencher) {
             output,
             status_output,
             &refs,
-            true,
-            false,
-            true,
-            DEFAULT_RECORD_SIZE,
+            &OPTIONS,
             CompressionMode::None,
         )
         .unwrap();
@@ -103,10 +105,7 @@ fn create_archive_100_files(bencher: divan::Bencher) {
             output,
             status_output,
             &refs,
-            true,
-            false,
-            true,
-            DEFAULT_RECORD_SIZE,
+            &OPTIONS,
             CompressionMode::None,
         )
         .unwrap();
@@ -130,10 +129,7 @@ fn create_archive_directory(bencher: divan::Bencher) {
             output,
             status_output,
             &[sub.as_path()],
-            true,
-            false,
-            true,
-            DEFAULT_RECORD_SIZE,
+            &OPTIONS,
             CompressionMode::None,
         )
         .unwrap();

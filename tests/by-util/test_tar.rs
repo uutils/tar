@@ -182,7 +182,7 @@ fn test_create_invalid_blocking_factor() {
     let (at, _ucmd) = at_and_ucmd!();
     at.write("a.txt", "a");
 
-    for value in ["0", "-1", "x", "1.5", "2147483648"] {
+    for value in ["0", "-1", "x", "1.5", "2097153", "2147483647"] {
         new_ucmd!()
             .current_dir(at.as_string())
             .args(&["-cf", "archive.tar", "-b", value, "a.txt"])

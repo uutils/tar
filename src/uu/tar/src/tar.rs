@@ -273,13 +273,13 @@ fn files_to_archive(matches: &ArgMatches) -> UResult<Vec<PathBuf>> {
 /// for `-`. Blank lines are skipped, and the other lines are taken as they
 /// are, spaces included.
 fn read_file_list(list: &Path) -> UResult<Vec<PathBuf>> {
-    let mut content = Vec::new();
-    let read = if list == Path::new("-") {
-        io::stdin().read_to_end(&mut content).map(|_| ())
+    let content = if list == Path::new("-") {
+        let mut content = Vec::new();
+        io::stdin().read_to_end(&mut content).map(|_| content)
     } else {
-        fs::read(list).map(|bytes| content = bytes)
-    };
-    read.map_err(|source| match source.kind() {
+        fs::read(list)
+    }
+    .map_err(|source| match source.kind() {
         io::ErrorKind::NotFound => TarError::CannotStat {
             path: list.to_path_buf(),
             source,
@@ -326,7 +326,9 @@ pub fn uu_app() -> Command {
             // Common options
             arg!(-v --verbose "Verbosely list files processed"),
             arg!(--"no-recursion" "Avoid descending automatically in directories"),
+            // Member selection for -x/-t is not supported yet, so refuse it there.
             arg!(-T --"files-from" <FILE> "Get names to archive from FILE, one per line")
+                .conflicts_with_all(["extract", "list"])
                 .action(ArgAction::Append)
                 .value_parser(clap::value_parser!(PathBuf)),
             // arg!(-h --dereference "Follow symlinks"),

@@ -226,6 +226,27 @@ fn test_create_files_from_errors() {
 }
 
 #[test]
+fn test_files_from_rejected_without_create() {
+    // Selecting members with -T is not supported yet, so it is refused
+    // instead of being ignored.
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.write("a.txt", "a");
+    at.write("list", "a.txt\n");
+    ucmd.args(&["-cf", "archive.tar", "a.txt"]).succeeds();
+
+    for (mode, long) in [("-xf", "--extract"), ("-tf", "--list")] {
+        new_ucmd!()
+            .args(&[mode, "archive.tar", "-T", "list"])
+            .current_dir(at.as_string())
+            .fails()
+            .code_is(2)
+            .stderr_contains(format!(
+                "the argument '{long}' cannot be used with '--files-from <FILE>'"
+            ));
+    }
+}
+
+#[test]
 fn test_create_single_file() {
     let (at, mut ucmd) = at_and_ucmd!();
 

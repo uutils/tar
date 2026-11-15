@@ -232,6 +232,55 @@ fn test_create_remove_files_cannot_unlink() {
 }
 
 #[test]
+#[cfg(unix)]
+fn test_create_remove_files_unreadable_subdirectory() {
+    if rustix::process::geteuid().is_root() {
+        eprintln!("skipping: running as root");
+        return;
+    }
+    let (at, _ucmd) = at_and_ucmd!();
+    at.mkdir_all("dir/locked");
+    at.write("dir/a.txt", "a");
+    at.set_mode("dir/locked", 0o000);
+
+    // Reported the same way with and without --remove-files, and nothing is
+    // removed.
+    for args in [
+        &["-cf", "archive.tar", "dir"][..],
+        &["-cf", "archive.tar", "--remove-files", "dir"],
+    ] {
+        new_ucmd!()
+            .args(args)
+            .current_dir(at.as_string())
+            .fails()
+            .code_is(2)
+            .stderr_contains(": Cannot add directory 'dir': ");
+    }
+
+    at.set_mode("dir/locked", 0o755);
+    assert!(at.file_exists("dir/a.txt"));
+}
+
+#[test]
+#[cfg(unix)]
+fn test_create_remove_files_keeps_symlinked_directory() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.mkdir("dir");
+    at.mkdir("target");
+    at.write("target/a.txt", "a");
+    at.symlink_dir("../target", "dir/link");
+
+    ucmd.args(&["-cf", "archive.tar", "--remove-files", "dir"])
+        .succeeds()
+        .no_output();
+
+    // The symlink is removed with the tree, its target is not.
+    assert!(!at.dir_exists("dir"));
+    assert!(at.dir_exists("target"));
+    assert!(at.file_exists("target/a.txt"));
+}
+
+#[test]
 fn test_create_remove_files_keeps_archive_inside_operand() {
     let (at, mut ucmd) = at_and_ucmd!();
     at.mkdir("dir");

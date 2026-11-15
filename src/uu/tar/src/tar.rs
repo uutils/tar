@@ -14,6 +14,7 @@ use std::io::{self, IsTerminal};
 use std::path::{Path, PathBuf};
 use uucore::error::UResult;
 use uucore::format_usage;
+use uucore::fs::FileInformation;
 
 const ABOUT: &str = "an archiving utility";
 const USAGE: &str = "tar key [FILE...]\n       tar {-c|-t|-x} [-v] -f ARCHIVE [FILE...]";
@@ -189,6 +190,13 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
             ));
         }
 
+        let options = operations::create::CreateOptions {
+            allow_absolute,
+            verbose,
+            recursive,
+            remove_files,
+            archive: None,
+        };
         let compression = explicit_compression.unwrap_or(CompressionMode::None);
         let output_is_stdout = archive_path == Path::new("-");
         return if output_is_stdout {
@@ -201,11 +209,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
                     output,
                     status_output,
                     &files,
-                    allow_absolute,
-                    verbose,
-                    recursive,
-                    remove_files,
-                    None,
+                    &options,
                     compression,
                 )
             }
@@ -214,18 +218,12 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
                 path: archive_path.clone(),
                 source: e,
             })?;
+            let options = operations::create::CreateOptions {
+                archive: Some(FileInformation::from_file(&output).map_err(TarError::Io)?),
+                ..options
+            };
             let status_output = io::stdout().lock();
-            operations::create::create_archive(
-                output,
-                status_output,
-                &files,
-                allow_absolute,
-                verbose,
-                recursive,
-                remove_files,
-                Some(archive_path),
-                compression,
-            )
+            operations::create::create_archive(output, status_output, &files, &options, compression)
         };
     }
 

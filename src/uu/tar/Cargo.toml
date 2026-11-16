@@ -15,7 +15,6 @@ categories = ["command-line-utilities"]
 chrono = { workspace = true }
 clap = { workspace = true }
 flate2 = { workspace = true }
-regex = { workspace = true }
 tar = { workspace = true }
 thiserror = { workspace = true }
 uucore = { workspace = true, features = ["fs"] }

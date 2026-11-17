@@ -181,10 +181,12 @@ fn get_tree(path: &Path) -> Result<Vec<PathBuf>, std::io::Error> {
     while let Some(current) = stack.pop_back() {
         paths.push(current.clone());
         if is_real_dir(&current) {
-            for entry in fs::read_dir(current)? {
-                let child = entry?.path();
-                stack.push_back(child);
-            }
+            let children = fs::read_dir(current)?
+                .map(|entry| entry.map(|entry| entry.path()))
+                .collect::<Result<Vec<_>, _>>()?;
+            // Pushed in reverse, so they come off the stack in directory
+            // order, as GNU tar archives them.
+            stack.extend(children.into_iter().rev());
         }
     }
 

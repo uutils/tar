@@ -1894,3 +1894,42 @@ fn test_extract_invalid_gzip_archive_fails() {
 
     ucmd.args(&["-xf", "invalid.tar.gz"]).fails().code_is(2);
 }
+
+#[test]
+fn test_create_archives_entries_in_directory_order() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    let separator = path::MAIN_SEPARATOR;
+    at.mkdir("dir");
+    at.mkdir(format!("dir{separator}sub"));
+    for name in ["a", "b", "c"] {
+        at.write(&format!("dir{separator}{name}"), name);
+        at.write(&format!("dir{separator}sub{separator}{name}"), name);
+    }
+
+    // A depth-first walk that lists each directory's entries in the order
+    // the file system returns them.
+    fn walk(at: &uutests::util::AtPath, dir: &str, out: &mut Vec<String>) {
+        out.push(format!("{dir}/"));
+        for entry in std::fs::read_dir(at.plus(dir)).unwrap() {
+            let entry = entry.unwrap();
+            let name = format!("{dir}/{}", entry.file_name().to_str().unwrap());
+            if entry.file_type().unwrap().is_dir() {
+                walk(at, &name, out);
+            } else {
+                out.push(name);
+            }
+        }
+    }
+    let mut expected = Vec::new();
+    walk(&at, "dir", &mut expected);
+
+    ucmd.args(&["-cf", "archive.tar", "dir"]).succeeds();
+    let data = std::fs::read(at.plus("archive.tar")).unwrap();
+    let mut archive = TarRsArchive::new(Cursor::new(data));
+    let names: Vec<String> = archive
+        .entries()
+        .unwrap()
+        .map(|entry| String::from_utf8(entry.unwrap().path_bytes().into_owned()).unwrap())
+        .collect();
+    assert_eq!(names, expected);
+}

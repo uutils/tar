@@ -181,6 +181,136 @@ fn test_create_no_recursion() {
 }
 
 #[test]
+fn test_create_files_from() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.mkdir("dir");
+    at.write("dir/c.txt", "c");
+    at.write("a.txt", "a");
+    at.write("b.txt", "b");
+    at.write("with space", "s");
+    // One name per line, blank lines skipped, spaces kept, no final newline.
+    at.write("list", "b.txt\n\nwith space\ndir");
+    at.write("list2", "a.txt\n");
+
+    // The names are archived where -T is given among the operands.
+    ucmd.args(&[
+        "-cf",
+        "archive.tar",
+        "a.txt",
+        "-T",
+        "list",
+        "b.txt",
+        "--files-from=list2",
+    ])
+    .succeeds()
+    .no_output();
+
+    let listing = new_ucmd!()
+        .arg("-tf")
+        .arg(at.plus("archive.tar"))
+        .succeeds()
+        .stdout_move_str()
+        .lines()
+        .map(|name| name.trim_end_matches('/').to_string())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        listing,
+        [
+            "a.txt",
+            "b.txt",
+            "with space",
+            "dir",
+            "dir/c.txt",
+            "b.txt",
+            "a.txt"
+        ]
+    );
+}
+
+#[test]
+fn test_create_files_from_stdin() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.write("a.txt", "a");
+
+    ucmd.args(&["-cf", "archive.tar", "-T", "-"])
+        .pipe_in("a.txt\n")
+        .succeeds()
+        .no_output();
+
+    new_ucmd!()
+        .arg("-tf")
+        .arg(at.plus("archive.tar"))
+        .succeeds()
+        .stdout_is("a.txt\n");
+}
+
+#[test]
+fn test_create_files_from_empty_list() {
+    // Unlike no operands at all, an empty list makes an empty archive.
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.touch("list");
+
+    ucmd.args(&["-cf", "archive.tar", "-T", "list"])
+        .succeeds()
+        .no_output();
+
+    new_ucmd!()
+        .arg("-tf")
+        .arg(at.plus("archive.tar"))
+        .succeeds()
+        .no_output();
+}
+
+#[test]
+fn test_create_files_from_errors() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.write("a.txt", "a");
+    at.write("list", "missing.txt\na.txt\n");
+
+    // A missing name is reported and the others are archived.
+    ucmd.args(&["-cf", "archive.tar", "-T", "list"])
+        .fails()
+        .code_is(2)
+        .stderr_contains(": missing.txt: Cannot stat: No such file or directory")
+        .stderr_contains("Exiting with failure status due to previous errors");
+    new_ucmd!()
+        .arg("-tf")
+        .arg(at.plus("archive.tar"))
+        .succeeds()
+        .stdout_is("a.txt\n");
+
+    // A missing list is fatal.
+    new_ucmd!()
+        .args(&["-cf", "other.tar", "-T", "nope", "a.txt"])
+        .current_dir(at.as_string())
+        .fails()
+        .code_is(2)
+        .stderr_contains(": nope: Cannot stat: No such file or directory")
+        .stderr_contains("Error is not recoverable: exiting now");
+}
+
+#[test]
+fn test_files_from_rejected_without_create() {
+    // Selecting members with -T is not supported yet, so it is refused
+    // instead of being ignored.
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.write("a.txt", "a");
+    at.write("list", "a.txt\n");
+    ucmd.args(&["-cf", "archive.tar", "a.txt"]).succeeds();
+
+    for (mode, long) in [("-xf", "--extract"), ("-tf", "--list")] {
+        new_ucmd!()
+            .args(&[mode, "archive.tar", "-T", "list"])
+            .current_dir(at.as_string())
+            .fails()
+            .code_is(2)
+            .stderr_contains(format!(
+                "the argument '{long}' cannot be used with '--files-from <FILE>'"
+            ));
+    }
+}
+
+#[test]
 fn test_create_single_file() {
     let (at, mut ucmd) = at_and_ucmd!();
 
@@ -302,11 +432,123 @@ fn test_create_empty_archive_fails() {
 
 #[test]
 fn test_create_nonexistent_file_fails() {
-    new_ucmd!()
-        .args(&["-cf", "archive.tar", "nonexistent.txt"])
+    let (at, mut ucmd) = at_and_ucmd!();
+    ucmd.args(&["-cf", "archive.tar", "nonexistent.txt"])
         .fails()
         .code_is(2)
-        .stderr_contains("nonexistent.txt");
+        .stderr_contains("nonexistent.txt: Cannot stat: No such file or directory")
+        .stderr_contains("Exiting with failure status due to previous errors");
+
+    // GNU tar still writes the (empty) archive
+    assert!(at.file_exists("archive.tar"));
+}
+
+#[test]
+fn test_create_skips_nonexistent_file_and_archives_the_rest() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.write("a.txt", "a");
+    at.write("b.txt", "b");
+
+    ucmd.args(&["-cf", "archive.tar", "a.txt", "missing.txt", "b.txt"])
+        .fails()
+        .code_is(2)
+        .stderr_contains("missing.txt: Cannot stat: No such file or directory")
+        .stderr_contains("Exiting with failure status due to previous errors")
+        .stderr_does_not_contain("not recoverable");
+
+    new_ucmd!()
+        .args(&["-tf", "archive.tar"])
+        .current_dir(at.as_string())
+        .succeeds()
+        .stdout_is("a.txt\nb.txt\n");
+}
+
+#[test]
+#[cfg(unix)]
+fn test_create_reports_stat_error_of_operand() {
+    use std::os::unix::fs::PermissionsExt;
+
+    if rustix::process::geteuid().is_root() {
+        return;
+    }
+
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.mkdir("locked");
+    at.write("locked/file.txt", "x");
+    let locked = at.plus("locked");
+    std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o000)).unwrap();
+
+    let result = ucmd.args(&["-cf", "archive.tar", "locked/file.txt"]).run();
+
+    std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o755)).unwrap();
+    result
+        .failure()
+        .code_is(2)
+        .stderr_contains("locked/file.txt: Cannot stat: Permission denied")
+        .stderr_does_not_contain("os error");
+}
+
+#[test]
+#[cfg(unix)]
+fn test_create_archives_dangling_symlink() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.write("a.txt", "a");
+    std::os::unix::fs::symlink("nowhere", at.plus("dangling")).unwrap();
+
+    // GNU tar archives the symlink itself and does not report it as missing
+    ucmd.args(&["-cf", "archive.tar", "a.txt", "dangling"])
+        .succeeds()
+        .no_stderr();
+
+    let result = new_ucmd!()
+        .args(&["-tvf", "archive.tar"])
+        .current_dir(at.as_string())
+        .succeeds();
+    let lines: Vec<&str> = result.stdout_str().lines().collect();
+    assert_eq!(lines.len(), 2);
+    assert!(lines[0].ends_with(" a.txt"));
+    assert!(lines[1].starts_with('l'));
+    assert!(lines[1].ends_with(" dangling -> nowhere"));
+}
+
+#[test]
+#[cfg(unix)]
+fn test_create_does_not_follow_symlinks() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.mkdir("dir");
+    at.write("dir/file.txt", "content");
+    std::os::unix::fs::symlink("file.txt", at.plus("dir/inner_link")).unwrap();
+    std::os::unix::fs::symlink("dir/file.txt", at.plus("file_link")).unwrap();
+    std::os::unix::fs::symlink("dir", at.plus("dir_link")).unwrap();
+
+    // GNU tar without -h archives symlinks as symlinks, both as operands and
+    // inside directories, and does not descend into a symlink to a directory
+    ucmd.args(&["-cvf", "archive.tar", "dir", "file_link", "dir_link"])
+        .succeeds()
+        .no_stderr();
+
+    let result = new_ucmd!()
+        .args(&["-tvf", "archive.tar"])
+        .current_dir(at.as_string())
+        .succeeds();
+    let symlinks: Vec<&str> = result
+        .stdout_str()
+        .lines()
+        .filter(|l| l.starts_with('l'))
+        .collect();
+    assert_eq!(symlinks.len(), 3, "{symlinks:?}");
+    assert!(
+        symlinks
+            .iter()
+            .any(|l| l.ends_with(" dir/inner_link -> file.txt"))
+    );
+    assert!(
+        symlinks
+            .iter()
+            .any(|l| l.ends_with(" file_link -> dir/file.txt"))
+    );
+    assert!(symlinks.iter().any(|l| l.ends_with(" dir_link -> dir")));
+    assert!(!result.stdout_str().contains("dir_link/"));
 }
 
 #[test]

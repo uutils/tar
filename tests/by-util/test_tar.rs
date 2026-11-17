@@ -1006,7 +1006,8 @@ fn test_extract_reports_directory_mtime_error() {
     }
 
     // usr already exists and belongs to root, so its time cannot be set. The
-    // mode is not a number, so the permissions are left alone.
+    // mode is not a number, so the permissions are left alone. The error is
+    // "Operation not permitted" on Linux and "Permission denied" on macOS.
     let mut tar_bytes = Vec::new();
     {
         let mut builder = TarRsBuilder::new(&mut tar_bytes);
@@ -1027,7 +1028,7 @@ fn test_extract_reports_directory_mtime_error() {
         .current_dir("/")
         .fails()
         .code_is(2)
-        .stderr_contains(": usr/: Cannot utime: Operation not permitted\n")
+        .stderr_contains(": usr/: Cannot utime: ")
         .stderr_does_not_contain(": tar: ")
         .stderr_does_not_contain("os error");
 }

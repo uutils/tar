@@ -80,18 +80,30 @@ pub fn create_archive(
         let normalized_name = get_normalized_path(path, allow_absolute)?;
 
         if metadata.is_dir() {
-            if recursive {
-                // If it's a directory, recursively add all contents
-                builder.append_dir_all(normalized_name, path)
+            // With --no-recursion, the directory entry only.
+            let tree = if recursive {
+                get_tree(path).map_err(|e| TarError::CannotAddDirectory {
+                    path: path.to_path_buf(),
+                    source: e,
+                })?
             } else {
-                // --no-recursion: the directory entry only, named with a trailing
-                // slash like the top directory added by append_dir_all
-                builder.append_dir(normalized_name.join(""), path)
+                vec![path.to_path_buf()]
+            };
+            for entry in &tree {
+                let relative = entry.strip_prefix(path).unwrap_or(entry);
+                let name = normalized_name.join(relative);
+                if is_real_dir(entry) {
+                    // Like GNU tar, name every directory with a trailing slash,
+                    // not just the top one.
+                    builder.append_dir(name.join(""), entry)
+                } else {
+                    builder.append_path_with_name(entry, name)
+                }
+                .map_err(|e| TarError::CannotAddDirectory {
+                    path: entry.clone(),
+                    source: e,
+                })?;
             }
-            .map_err(|e| TarError::CannotAddDirectory {
-                path: path.to_path_buf(),
-                source: e,
-            })?;
         } else {
             // For files and symlinks, add them directly
             builder

@@ -3,13 +3,14 @@
 // For the full copyright and license information, please view the LICENSE
 // file that was distributed with this source code.
 
+use super::members::MemberFilter;
 use crate::compression::open_archive_reader;
-use crate::errors::TarError;
+use crate::errors::{finish_after_previous_errors, TarError};
 use crate::CompressionMode;
 use chrono::{Local, TimeZone};
 use std::io::Read;
 use std::io::{self, BufWriter, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tar::Archive;
 use uucore::error::UResult;
 use uucore::fs::display_permissions_unix;
@@ -23,7 +24,9 @@ pub fn list_archive(
     _archive_path: &Path,
     verbose: bool,
     compression: CompressionMode,
+    members: &[PathBuf],
 ) -> UResult<()> {
+    let mut members = MemberFilter::new(members);
     let reader = open_archive_reader(input, compression)?;
     let mut archive = Archive::new(reader);
     let mut out = BufWriter::new(io::stdout().lock());
@@ -33,6 +36,9 @@ pub fn list_archive(
 
     for entry_result in archive.entries().map_err(TarError::CannotReadEntries)? {
         let entry = entry_result.map_err(TarError::CannotReadEntry)?;
+        if !members.selects(&entry.path().map_err(TarError::CannotReadEntryPath)?) {
+            continue;
+        }
 
         if verbose {
             let formatted = format_verbose_entry(&entry, &mut owner_size_width)?;
@@ -44,6 +50,9 @@ pub fn list_archive(
     }
 
     out.flush().map_err(TarError::Io)?;
+    if members.report_unmatched()? {
+        return finish_after_previous_errors();
+    }
     Ok(())
 }
 

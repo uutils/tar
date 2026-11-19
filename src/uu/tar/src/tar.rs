@@ -217,10 +217,20 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
                 path: archive_path.clone(),
                 source: e,
             })?;
-            let options = operations::create::CreateOptions {
-                archive: Some(FileInformation::from_file(&output).map_err(TarError::Io)?),
-                ..options
+            // Only --remove-files needs to recognize the archive among the
+            // files to remove.
+            let archive = if remove_files {
+                let info = FileInformation::from_file(&output).map_err(|e| {
+                    TarError::CannotCreateArchive {
+                        path: archive_path.clone(),
+                        source: e,
+                    }
+                })?;
+                Some(info)
+            } else {
+                None
             };
+            let options = operations::create::CreateOptions { archive, ..options };
             let status_output = io::stdout().lock();
             operations::create::create_archive(output, status_output, &files, &options, compression)
         };

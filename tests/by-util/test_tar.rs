@@ -1858,3 +1858,139 @@ fn test_extract_invalid_gzip_archive_fails() {
 
     ucmd.args(&["-xf", "invalid.tar.gz"]).fails().code_is(2);
 }
+
+/// Builds an archive with regular file `a` followed by hard links to it.
+fn archive_with_hard_links(links: &[&str]) -> Vec<u8> {
+    let mut tar_bytes = Vec::new();
+    {
+        let mut builder = TarRsBuilder::new(&mut tar_bytes);
+        let mut header = TarRsHeader::new_gnu();
+        header.set_mode(0o644);
+        header.set_size(5);
+        builder
+            .append_data(&mut header, "a", Cursor::new("hello"))
+            .unwrap();
+        for link in links {
+            let mut header = TarRsHeader::new_gnu();
+            header.set_entry_type(tar_rs_crate::EntryType::Link);
+            header.set_mode(0o644);
+            header.set_size(0);
+            builder.append_link(&mut header, link, "a").unwrap();
+        }
+        builder.finish().unwrap();
+    }
+    tar_bytes
+}
+
+#[test]
+fn test_extract_hard_link_to_itself() {
+    // What `tar -cf x.tar a a` produces: the second `a` is a link to the first.
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.write_bytes("x.tar", &archive_with_hard_links(&["a"]));
+    at.mkdir("out");
+
+    ucmd.args(&["-xf", "../x.tar"])
+        .current_dir(at.plus("out"))
+        .succeeds()
+        .no_stderr();
+
+    assert_eq!(at.read("out/a"), "hello");
+}
+
+#[test]
+fn test_extract_hard_link_replaces_existing_file() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.write_bytes("x.tar", &archive_with_hard_links(&["b", "c"]));
+    at.mkdir("out");
+    at.write("out/b", "unrelated");
+    at.write("out/c", "unrelated");
+
+    ucmd.args(&["-xf", "../x.tar"])
+        .current_dir(at.plus("out"))
+        .succeeds()
+        .no_stderr();
+
+    assert_eq!(at.read("out/b"), "hello");
+    assert_eq!(at.read("out/c"), "hello");
+}
+
+#[test]
+fn test_extract_hard_links_twice() {
+    let (at, _ucmd) = at_and_ucmd!();
+    at.write_bytes("x.tar", &archive_with_hard_links(&["b", "c"]));
+    at.mkdir("out");
+
+    for _ in 0..2 {
+        new_ucmd!()
+            .args(&["-xf", "../x.tar"])
+            .current_dir(at.plus("out"))
+            .succeeds()
+            .no_stderr();
+    }
+
+    assert_eq!(at.read("out/b"), "hello");
+    assert_eq!(at.read("out/c"), "hello");
+}
+
+#[test]
+#[cfg(unix)]
+fn test_extract_hard_link_does_not_remove_through_symlink() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.mkdir("out");
+    at.mkdir("outside");
+    at.write("outside/victim", "keep");
+
+    let mut tar_bytes = Vec::new();
+    {
+        let mut builder = TarRsBuilder::new(&mut tar_bytes);
+        let mut header = TarRsHeader::new_gnu();
+        header.set_mode(0o644);
+        header.set_size(5);
+        builder
+            .append_data(&mut header, "a", Cursor::new("hello"))
+            .unwrap();
+        let mut header = TarRsHeader::new_gnu();
+        header.set_entry_type(tar_rs_crate::EntryType::Symlink);
+        header.set_mode(0o777);
+        header.set_size(0);
+        builder.append_link(&mut header, "d", "../outside").unwrap();
+        let mut header = TarRsHeader::new_gnu();
+        header.set_entry_type(tar_rs_crate::EntryType::Link);
+        header.set_mode(0o644);
+        header.set_size(0);
+        builder.append_link(&mut header, "d/victim", "a").unwrap();
+        builder.finish().unwrap();
+    }
+    at.write_bytes("x.tar", &tar_bytes);
+
+    ucmd.args(&["-xf", "../x.tar"])
+        .current_dir(at.plus("out"))
+        .fails();
+
+    assert_eq!(at.read("outside/victim"), "keep");
+}
+
+#[test]
+fn test_extract_hard_link_to_missing_target_keeps_existing_file() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.mkdir("out");
+    at.write("out/b", "keep");
+
+    let mut tar_bytes = Vec::new();
+    {
+        let mut builder = TarRsBuilder::new(&mut tar_bytes);
+        let mut header = TarRsHeader::new_gnu();
+        header.set_entry_type(tar_rs_crate::EntryType::Link);
+        header.set_mode(0o644);
+        header.set_size(0);
+        builder.append_link(&mut header, "b", "missing").unwrap();
+        builder.finish().unwrap();
+    }
+    at.write_bytes("x.tar", &tar_bytes);
+
+    ucmd.args(&["-xf", "../x.tar"])
+        .current_dir(at.plus("out"))
+        .fails();
+
+    assert_eq!(at.read("out/b"), "keep");
+}

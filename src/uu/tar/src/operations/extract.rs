@@ -7,6 +7,7 @@ use crate::compression::open_archive_reader;
 use crate::errors::{finish_after_previous_errors, report_recoverable, TarError};
 use crate::CompressionMode;
 use std::collections::HashSet;
+use std::fs;
 use std::io::Read;
 use std::io::{self, BufWriter, Write};
 use std::path::{Component, Path, PathBuf};
@@ -110,6 +111,13 @@ fn unpack_entry<R: Read>(
     path: PathBuf,
     out: &mut impl Write,
 ) -> UResult<bool> {
+    let already_linked = prepare_hard_link(entry, &path).map_err(|e| TarError::CannotExtract {
+        path: path.clone(),
+        source: e,
+    })?;
+    if already_linked {
+        return Ok(false);
+    }
     // `unpack_in` skips, and returns false for, a member whose name contains
     // a `..` component, as it would escape the target directory.
     let unpacked = entry.unpack_in(".").map_err(|e| TarError::CannotExtract {
@@ -121,6 +129,65 @@ fn unpack_entry<R: Read>(
         report_recoverable(&TarError::MemberNameContainsDotDot { path })?;
     }
     Ok(!unpacked)
+}
+
+/// tar-rs fails a hard link whose destination already exists. Like GNU tar,
+/// accept a link that names its own target, as in an archive made with
+/// `tar -cf x.tar a a`, and replace any other existing non-directory.
+/// Returns true when the link is already in place.
+fn prepare_hard_link<R: Read>(entry: &Entry<R>, path: &Path) -> io::Result<bool> {
+    if entry.header().entry_type() != EntryType::Link {
+        return Ok(false);
+    }
+    let Some(target) = entry.link_name()? else {
+        return Ok(false);
+    };
+    if target.has_root() {
+        return Ok(false);
+    }
+    let (Some(dest), Some(target)) = (member_path(path), member_path(&target)) else {
+        return Ok(false);
+    };
+    let Ok(metadata) = fs::symlink_metadata(&dest) else {
+        return Ok(false);
+    };
+    // A symlink extracted earlier may lead out of the target directory; leave
+    // such a member to `unpack_in`, which refuses it.
+    if !parent_is_inside_cwd(&dest)? {
+        return Ok(false);
+    }
+    if dest == target {
+        return Ok(true);
+    }
+    // Without a target the link fails anyway, so keep the existing file.
+    if !metadata.is_dir() && fs::symlink_metadata(&target).is_ok() {
+        fs::remove_file(&dest)?;
+    }
+    Ok(false)
+}
+
+fn parent_is_inside_cwd(path: &Path) -> io::Result<bool> {
+    let cwd = fs::canonicalize(".")?;
+    match path.parent() {
+        Some(parent) if !parent.as_os_str().is_empty() => {
+            Ok(fs::canonicalize(parent)?.starts_with(&cwd))
+        }
+        _ => Ok(true),
+    }
+}
+
+/// The relative path `unpack_in` uses for a member name, or `None` for a name
+/// it refuses or that names no file.
+fn member_path(path: &Path) -> Option<PathBuf> {
+    let mut relative = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::Normal(part) => relative.push(part),
+            Component::ParentDir => return None,
+            Component::RootDir | Component::Prefix(_) | Component::CurDir => {}
+        }
+    }
+    (!relative.as_os_str().is_empty()).then_some(relative)
 }
 
 #[cfg(test)]

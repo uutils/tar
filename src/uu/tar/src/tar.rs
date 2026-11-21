@@ -161,12 +161,13 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         })?;
 
         let compression = explicit_compression.unwrap_or(CompressionMode::Auto);
+        let members = member_names(&matches);
         return if archive_path == Path::new("-") {
-            operations::extract::extract_archive(io::stdin(), verbose, compression)
+            operations::extract::extract_archive(io::stdin(), verbose, compression, &members)
         } else {
             let file =
                 File::open(archive_path).map_err(|e| TarError::from_io_error(e, archive_path))?;
-            operations::extract::extract_archive(file, verbose, compression)
+            operations::extract::extract_archive(file, verbose, compression, &members)
         };
     }
 
@@ -230,12 +231,19 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         })?;
 
         let compression = explicit_compression.unwrap_or(CompressionMode::Auto);
+        let members = member_names(&matches);
         return if archive_path == Path::new("-") {
-            operations::list::list_archive(io::stdin(), archive_path, verbose, compression)
+            operations::list::list_archive(
+                io::stdin(),
+                archive_path,
+                verbose,
+                compression,
+                &members,
+            )
         } else {
             let file =
                 File::open(archive_path).map_err(|e| TarError::from_io_error(e, archive_path))?;
-            operations::list::list_archive(file, archive_path, verbose, compression)
+            operations::list::list_archive(file, archive_path, verbose, compression, &members)
         };
     }
 
@@ -248,6 +256,14 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
 
 /// The files to archive: the operands, with the names read from each
 /// -T/--files-from list put where the option was given.
+/// The member names given to `-t` or `-x`.
+fn member_names(matches: &ArgMatches) -> Vec<PathBuf> {
+    matches
+        .get_many::<PathBuf>("files")
+        .map(|names| names.cloned().collect())
+        .unwrap_or_default()
+}
+
 fn files_to_archive(matches: &ArgMatches) -> UResult<Vec<PathBuf>> {
     let mut files: Vec<(usize, PathBuf)> = Vec::new();
     if let (Some(indices), Some(operands)) = (

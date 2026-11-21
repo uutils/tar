@@ -3,6 +3,7 @@
 // For the full copyright and license information, please view the LICENSE
 // file that was distributed with this source code.
 
+use super::members::MemberFilter;
 use crate::compression::open_archive_reader;
 use crate::errors::{finish_after_previous_errors, report_recoverable, TarError};
 use crate::CompressionMode;
@@ -29,10 +30,12 @@ pub fn extract_archive(
     input: impl Read,
     verbose: bool,
     compression: CompressionMode,
+    members: &[PathBuf],
 ) -> UResult<()> {
     let reader = open_archive_reader(input, compression)?;
     let mut archive = Archive::new(reader);
     let mut out = BufWriter::new(io::stdout().lock());
+    let mut members = MemberFilter::new(members);
 
     // Members that were refused are reported as they are met; like GNU tar, the
     // remaining members are still extracted and the exit status records the failure.
@@ -53,6 +56,9 @@ pub fn extract_archive(
             .path()
             .map_err(TarError::CannotReadEntryPath)?
             .to_path_buf();
+        if !members.selects(&path) {
+            continue;
+        }
 
         warn_leading_slashes(&path, &mut warned_slashes, &mut out)?;
         if verbose {
@@ -77,7 +83,8 @@ pub fn extract_archive(
     }
 
     out.flush().map_err(TarError::Io)?;
-    if refused_member {
+    let unmatched = members.report_unmatched()?;
+    if refused_member || unmatched {
         return finish_after_previous_errors();
     }
     Ok(())

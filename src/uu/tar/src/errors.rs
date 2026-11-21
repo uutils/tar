@@ -40,6 +40,9 @@ pub enum TarError {
     #[error("{path}: Cannot stat: {}", io_error_message(.source))]
     CannotStat { path: PathBuf, source: io::Error },
 
+    #[error("{}: Not found in archive", .0.display())]
+    NotFoundInArchive(PathBuf),
+
     /// Permission denied when accessing file
     #[error("{path}: Cannot open: Permission denied")]
     PermissionDenied { path: PathBuf },

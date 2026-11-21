@@ -14,6 +14,7 @@ use std::io::{self, IsTerminal, Read};
 use std::path::{Path, PathBuf};
 use uucore::error::UResult;
 use uucore::format_usage;
+use uucore::fs::FileInformation;
 
 const ABOUT: &str = "an archiving utility";
 const USAGE: &str = "tar key [FILE...]\n       tar {-c|-t|-x} [-v] -f ARCHIVE [FILE...]";
@@ -146,6 +147,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     let verbose = matches.get_flag("verbose");
     let allow_absolute = matches.get_flag("absolute-names");
     let recursive = !matches.get_flag("no-recursion");
+    let remove_files = matches.get_flag("remove-files");
     let explicit_compression = if matches.get_flag("gzip") {
         Some(CompressionMode::Gzip)
     } else if matches.get_flag("zstd") {
@@ -187,6 +189,13 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
             ));
         }
 
+        let options = operations::create::CreateOptions {
+            allow_absolute,
+            verbose,
+            recursive,
+            remove_files,
+            archive: None,
+        };
         let compression = explicit_compression.unwrap_or(CompressionMode::None);
         let output_is_stdout = archive_path == Path::new("-");
         return if output_is_stdout {
@@ -199,9 +208,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
                     output,
                     status_output,
                     &files,
-                    allow_absolute,
-                    verbose,
-                    recursive,
+                    &options,
                     compression,
                 )
             }
@@ -210,16 +217,22 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
                 path: archive_path.clone(),
                 source: e,
             })?;
+            // Only --remove-files needs to recognize the archive among the
+            // files to remove.
+            let archive = if remove_files {
+                let info = FileInformation::from_file(&output).map_err(|e| {
+                    TarError::CannotCreateArchive {
+                        path: archive_path.clone(),
+                        source: e,
+                    }
+                })?;
+                Some(info)
+            } else {
+                None
+            };
+            let options = operations::create::CreateOptions { archive, ..options };
             let status_output = io::stdout().lock();
-            operations::create::create_archive(
-                output,
-                status_output,
-                &files,
-                allow_absolute,
-                verbose,
-                recursive,
-                compression,
-            )
+            operations::create::create_archive(output, status_output, &files, &options, compression)
         };
     }
 
@@ -331,6 +344,7 @@ pub fn uu_app() -> Command {
                 .conflicts_with_all(["extract", "list"])
                 .action(ArgAction::Append)
                 .value_parser(clap::value_parser!(PathBuf)),
+            arg!(--"remove-files" "Remove files after adding them to the archive"),
             // arg!(-h --dereference "Follow symlinks"),
             // arg!(-p --"preserve-permissions" "Extract information about file permissions"),
             // Help

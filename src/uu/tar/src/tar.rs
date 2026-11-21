@@ -18,6 +18,17 @@ use uucore::format_usage;
 const ABOUT: &str = "an archiving utility";
 const USAGE: &str = "tar key [FILE...]\n       tar {-c|-t|-x} [-v] -f ARCHIVE [FILE...]";
 
+/// Size of a tar block in bytes.
+const BLOCK_SIZE: u64 = 512;
+
+/// Size in bytes of the records an archive is padded to, without -b: 20
+/// blocks, like GNU tar.
+pub const DEFAULT_RECORD_SIZE: u64 = 20 * BLOCK_SIZE;
+
+/// Largest -b accepted, for 1 GiB records, so that a typo cannot pad a small
+/// archive with up to 1 TiB of zeros.
+const MAX_BLOCKING_FACTOR: u64 = 2 * 1024 * 1024;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CompressionMode {
     Auto,
@@ -75,9 +86,8 @@ fn expand_posix_keystring(args: Vec<std::ffi::OsString>) -> Vec<std::ffi::OsStri
                 }
             }
             'b' => {
-                // Preserve parity with dash-style parsing by forwarding '-b'
-                // and its operand (when present). Since '-b' is currently
-                // unsupported, clap will report it as an unknown argument.
+                // Forward '-b' and its operand (when present), like dash-style
+                // parsing.
                 result.push(std::ffi::OsString::from("-b"));
                 if file_idx < file_operands.len() {
                     result.push(file_operands[file_idx].clone());
@@ -146,6 +156,10 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     let verbose = matches.get_flag("verbose");
     let allow_absolute = matches.get_flag("absolute-names");
     let recursive = !matches.get_flag("no-recursion");
+    let record_size = match matches.get_one::<String>("blocking-factor") {
+        Some(blocking_factor) => parse_blocking_factor(blocking_factor)? * BLOCK_SIZE,
+        None => DEFAULT_RECORD_SIZE,
+    };
     let explicit_compression = if matches.get_flag("gzip") {
         Some(CompressionMode::Gzip)
     } else if matches.get_flag("zstd") {
@@ -187,6 +201,12 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
             ));
         }
 
+        let options = operations::create::CreateOptions {
+            allow_absolute,
+            verbose,
+            recursive,
+            record_size,
+        };
         let compression = explicit_compression.unwrap_or(CompressionMode::None);
         let output_is_stdout = archive_path == Path::new("-");
         return if output_is_stdout {
@@ -199,9 +219,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
                     output,
                     status_output,
                     &files,
-                    allow_absolute,
-                    verbose,
-                    recursive,
+                    &options,
                     compression,
                 )
             }
@@ -211,15 +229,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
                 source: e,
             })?;
             let status_output = io::stdout().lock();
-            operations::create::create_archive(
-                output,
-                status_output,
-                &files,
-                allow_absolute,
-                verbose,
-                recursive,
-                compression,
-            )
+            operations::create::create_archive(output, status_output, &files, &options, compression)
         };
     }
 
@@ -293,6 +303,14 @@ fn read_file_list(list: &Path) -> UResult<Vec<PathBuf>> {
         .collect()
 }
 
+/// Parses the number of blocks per record given to -b.
+fn parse_blocking_factor(value: &str) -> Result<u64, TarError> {
+    match value.parse() {
+        Ok(blocks @ 1..=MAX_BLOCKING_FACTOR) => Ok(blocks),
+        _ => Err(TarError::InvalidBlockingFactor(value.to_string())),
+    }
+}
+
 #[allow(clippy::cognitive_complexity)]
 pub fn uu_app() -> Command {
     Command::new("tar (uutils)")
@@ -314,6 +332,9 @@ pub fn uu_app() -> Command {
             // Archive file
             arg!(-f --file <ARCHIVE> "Use archive file or device ARCHIVE")
                 .value_parser(clap::value_parser!(PathBuf)),
+            arg!(-b --"blocking-factor" <BLOCKS> "BLOCKS x 512 bytes per record")
+                .allow_hyphen_values(true)
+                .overrides_with("blocking-factor"),
             arg!(
                 -P --"absolute-names"
                 "Don't strip leading '/'s from file names"

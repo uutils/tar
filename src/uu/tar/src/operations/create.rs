@@ -14,15 +14,24 @@ use std::path::{self, Path, PathBuf};
 use tar::Builder;
 use uucore::error::UResult;
 
+/// Options for [`create_archive`]
+pub struct CreateOptions {
+    /// Allow absolute paths while creating archive
+    pub allow_absolute: bool,
+    /// Whether to print verbose output during creation
+    pub verbose: bool,
+    /// Whether to add the contents of directories, not only the directories themselves
+    pub recursive: bool,
+    /// Size in bytes of the records the archive is padded to
+    pub record_size: u64,
+}
+
 /// Create a tar archive from the specified files
 ///
 /// # Arguments
 ///
 /// * `output` - Destination where the tar archive should be written
 /// * `files` - Slice of file paths to add to the archive
-/// * `allow_absolute` - Allow absolute paths while creating archive
-/// * `verbose` - Whether to print verbose output during creation
-/// * `recursive` - Whether to add the contents of directories, not only the directories themselves
 ///
 /// # Errors
 ///
@@ -35,16 +44,20 @@ pub fn create_archive(
     output: impl Write,
     status_output: impl Write,
     files: &[&Path],
-    allow_absolute: bool,
-    verbose: bool,
-    recursive: bool,
+    options: &CreateOptions,
     compression: CompressionMode,
 ) -> UResult<()> {
+    let &CreateOptions {
+        allow_absolute,
+        verbose,
+        recursive,
+        record_size,
+    } = options;
     let output = BufWriter::new(output);
     let mut status_output = BufWriter::new(status_output);
 
     // Create Builder instance
-    let writer = ArchiveWriter::new(output, compression)?;
+    let writer = ArchiveWriter::new(output, compression)?.with_record_size(record_size);
     let mut builder = Builder::new(writer);
     builder.preserve_absolute(allow_absolute);
     // Like GNU tar without -h/--dereference, archive symlinks as symlinks,

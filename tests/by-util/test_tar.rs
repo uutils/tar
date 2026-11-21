@@ -117,6 +117,42 @@ fn test_create_no_recursion() {
 }
 
 #[test]
+fn test_create_names_nested_dirs_with_trailing_slash() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    let separator = path::MAIN_SEPARATOR;
+    at.mkdir("dir1");
+    at.mkdir(format!("dir1{separator}dir2"));
+    at.mkdir(format!("dir1{separator}dir2{separator}dir3"));
+    at.write(&format!("dir1{separator}dir2{separator}file.txt"), "x");
+
+    ucmd.args(&["-cf", "archive.tar", "dir1"]).succeeds();
+
+    let data = std::fs::read(at.plus("archive.tar")).unwrap();
+    let mut archive = TarRsArchive::new(Cursor::new(data));
+    let mut names: Vec<(String, bool)> = archive
+        .entries()
+        .unwrap()
+        .map(|entry| {
+            let entry = entry.unwrap();
+            let is_dir = entry.header().entry_type().is_dir();
+            // Raw header bytes, so the trailing slash is not normalized away.
+            let name = String::from_utf8(entry.path_bytes().into_owned()).unwrap();
+            (name, is_dir)
+        })
+        .collect();
+    names.sort();
+    assert_eq!(
+        names,
+        [
+            ("dir1/".to_string(), true),
+            ("dir1/dir2/".to_string(), true),
+            ("dir1/dir2/dir3/".to_string(), true),
+            ("dir1/dir2/file.txt".to_string(), false),
+        ]
+    );
+}
+
+#[test]
 fn test_create_files_from() {
     let (at, mut ucmd) = at_and_ucmd!();
     at.mkdir("dir");
@@ -1857,4 +1893,43 @@ fn test_extract_invalid_gzip_archive_fails() {
     at.write("invalid.tar.gz", "definitely not gzip");
 
     ucmd.args(&["-xf", "invalid.tar.gz"]).fails().code_is(2);
+}
+
+#[test]
+fn test_create_archives_entries_in_directory_order() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    let separator = path::MAIN_SEPARATOR;
+    at.mkdir("dir");
+    at.mkdir(format!("dir{separator}sub"));
+    for name in ["a", "b", "c"] {
+        at.write(&format!("dir{separator}{name}"), name);
+        at.write(&format!("dir{separator}sub{separator}{name}"), name);
+    }
+
+    // A depth-first walk that lists each directory's entries in the order
+    // the file system returns them.
+    fn walk(at: &uutests::util::AtPath, dir: &str, out: &mut Vec<String>) {
+        out.push(format!("{dir}/"));
+        for entry in std::fs::read_dir(at.plus(dir)).unwrap() {
+            let entry = entry.unwrap();
+            let name = format!("{dir}/{}", entry.file_name().to_str().unwrap());
+            if entry.file_type().unwrap().is_dir() {
+                walk(at, &name, out);
+            } else {
+                out.push(name);
+            }
+        }
+    }
+    let mut expected = Vec::new();
+    walk(&at, "dir", &mut expected);
+
+    ucmd.args(&["-cf", "archive.tar", "dir"]).succeeds();
+    let data = std::fs::read(at.plus("archive.tar")).unwrap();
+    let mut archive = TarRsArchive::new(Cursor::new(data));
+    let names: Vec<String> = archive
+        .entries()
+        .unwrap()
+        .map(|entry| String::from_utf8(entry.unwrap().path_bytes().into_owned()).unwrap())
+        .collect();
+    assert_eq!(names, expected);
 }

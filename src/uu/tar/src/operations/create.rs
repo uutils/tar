@@ -8,11 +8,26 @@ use crate::errors::{finish_after_previous_errors, report_recoverable, TarError};
 use crate::CompressionMode;
 use std::collections::VecDeque;
 use std::fs;
-use std::io::{BufWriter, Write};
+use std::io::{self, BufWriter, Write};
 use std::path::Component::{self, ParentDir, Prefix, RootDir};
 use std::path::{self, Path, PathBuf};
 use tar::Builder;
 use uucore::error::UResult;
+use uucore::fs::FileInformation;
+
+/// Options for [`create_archive`]
+pub struct CreateOptions {
+    /// Allow absolute paths while creating archive
+    pub allow_absolute: bool,
+    /// Whether to print verbose output during creation
+    pub verbose: bool,
+    /// Whether to add the contents of directories, not only the directories themselves
+    pub recursive: bool,
+    /// Whether to remove the archived files once the archive is written
+    pub remove_files: bool,
+    /// The archive file, which is never removed, if it is not standard output
+    pub archive: Option<FileInformation>,
+}
 
 /// Create a tar archive from the specified files
 ///
@@ -20,9 +35,6 @@ use uucore::error::UResult;
 ///
 /// * `output` - Destination where the tar archive should be written
 /// * `files` - Slice of file paths to add to the archive
-/// * `allow_absolute` - Allow absolute paths while creating archive
-/// * `verbose` - Whether to print verbose output during creation
-/// * `recursive` - Whether to add the contents of directories, not only the directories themselves
 ///
 /// # Errors
 ///
@@ -31,15 +43,23 @@ use uucore::error::UResult;
 /// - Any input file cannot be read (a missing input file is reported and
 ///   skipped, and the archive is still written)
 /// - Files cannot be added due to I/O or permission errors
+///
+/// A file that cannot be removed is reported, and the other ones are still
+/// removed.
 pub fn create_archive(
     output: impl Write,
     status_output: impl Write,
     files: &[&Path],
-    allow_absolute: bool,
-    verbose: bool,
-    recursive: bool,
+    options: &CreateOptions,
     compression: CompressionMode,
 ) -> UResult<()> {
+    let CreateOptions {
+        allow_absolute,
+        verbose,
+        recursive,
+        remove_files,
+        ref archive,
+    } = *options;
     let output = BufWriter::new(output);
     let mut status_output = BufWriter::new(status_output);
 
@@ -51,9 +71,15 @@ pub fn create_archive(
     // both for operands and for entries found inside directories.
     builder.follow_symlinks(false);
 
-    // Set when an operand could not be archived but the rest were, so that tar
-    // ends with "Exiting with failure status due to previous errors" like GNU tar.
-    let mut missing_operand = false;
+    // Set when an operand could not be archived but the rest were, or a file
+    // could not be removed, so that tar ends with "Exiting with failure status
+    // due to previous errors" like GNU tar.
+    let mut previous_errors = false;
+
+    // With --remove-files, what was archived, each entry after the ones it
+    // contains. Like GNU tar, nothing is removed before the whole archive is
+    // written, so a file can still be archived again by a later operand.
+    let mut to_remove = Vec::new();
 
     // Add each file or directory to the archive
     for &path in files {
@@ -68,16 +94,31 @@ pub fn create_archive(
                     path: path.to_path_buf(),
                     source,
                 })?;
-                missing_operand = true;
+                previous_errors = true;
                 continue;
             }
         };
 
+        // Listed before archiving, so that --remove-files does not remove
+        // anything created meanwhile that was not archived.
+        let tree = if (verbose || remove_files) && recursive {
+            get_tree(path).map_err(|source| TarError::CannotAddDirectory {
+                path: path.to_path_buf(),
+                source,
+            })?
+        } else {
+            vec![path.to_path_buf()]
+        };
+
         if verbose {
-            print_verbose_tree(&mut status_output, path, recursive)?;
+            print_verbose_tree(&mut status_output, &tree)?;
         }
 
         let normalized_name = get_normalized_path(path, allow_absolute)?;
+
+        if remove_files {
+            to_remove.extend(tree.into_iter().rev());
+        }
 
         if metadata.is_dir() {
             if recursive {
@@ -110,18 +151,55 @@ pub fn create_archive(
     writer.finish()?;
     status_output.flush().map_err(TarError::Io)?;
 
-    if missing_operand {
+    for path in &to_remove {
+        if !remove_archived(path, archive.as_ref())? {
+            previous_errors = true;
+        }
+    }
+
+    if previous_errors {
         return finish_after_previous_errors();
     }
     Ok(())
 }
 
-fn print_verbose_tree(status_output: &mut impl Write, path: &Path, recursive: bool) -> UResult<()> {
-    let tree = if recursive {
-        get_tree(path)?
-    } else {
-        vec![path.to_path_buf()]
+/// Removes an archived file or (empty) directory for --remove-files, unless
+/// it is the archive itself. One that is already gone, such as a file given
+/// twice, is skipped. Returns false when it could not be removed, which is
+/// reported.
+fn remove_archived(path: &Path, archive: Option<&FileInformation>) -> UResult<bool> {
+    let Ok(metadata) = path.symlink_metadata() else {
+        return Ok(true);
     };
+    if metadata.is_file()
+        && archive.is_some_and(|archive| {
+            FileInformation::from_path(path, false).is_ok_and(|file| file == *archive)
+        })
+    {
+        return Ok(true);
+    }
+    let error = if metadata.is_dir() {
+        match fs::remove_dir(path) {
+            Err(source) if source.kind() != io::ErrorKind::NotFound => TarError::CannotRmdir {
+                path: path.to_path_buf(),
+                source,
+            },
+            _ => return Ok(true),
+        }
+    } else {
+        match fs::remove_file(path) {
+            Err(source) if source.kind() != io::ErrorKind::NotFound => TarError::CannotUnlink {
+                path: path.to_path_buf(),
+                source,
+            },
+            _ => return Ok(true),
+        }
+    };
+    report_recoverable(&error)?;
+    Ok(false)
+}
+
+fn print_verbose_tree(status_output: &mut impl Write, tree: &[PathBuf]) -> UResult<()> {
     let to_print = tree
         .iter()
         .map(|p| (is_real_dir(p), p.display().to_string()))

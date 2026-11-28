@@ -68,6 +68,10 @@ pub enum TarError {
     #[error("Cannot finalize archive: {0}")]
     CannotFinalizeArchive(io::Error),
 
+    /// The value given to -b is not a valid number of blocks
+    #[error("{0}: Invalid blocking factor")]
+    InvalidBlockingFactor(String),
+
     /// Refusing to write archive contents to terminal
     #[error("Refusing to write archive contents to terminal (missing -f option?)")]
     RefuseWriteArchiveToTerminal,

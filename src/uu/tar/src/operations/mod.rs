@@ -13,6 +13,7 @@ use std::sync::{Mutex, MutexGuard, OnceLock};
 pub mod create;
 pub mod extract;
 pub mod list;
+pub mod members;
 
 /// The warning GNU tar gives when it strips a leading prefix (`/`, `../`)
 /// from a member name.

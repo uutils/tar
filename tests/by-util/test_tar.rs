@@ -1923,3 +1923,79 @@ fn test_extract_invalid_gzip_archive_fails() {
 
     ucmd.args(&["-xf", "invalid.tar.gz"]).fails().code_is(2);
 }
+
+/// An archive holding `src/a`, `src/d/`, `src/d/b.txt`, `src/d/e/` and `src/d/e/c`.
+fn member_selection_archive(at: &uutests::util::AtPath) {
+    let mut builder = TarRsBuilder::new(Vec::new());
+    for (name, data) in [
+        ("src/a", Some("a")),
+        ("src/d/", None),
+        ("src/d/b.txt", Some("b")),
+        ("src/d/e/", None),
+        ("src/d/e/c", Some("c")),
+    ] {
+        let mut header = TarRsHeader::new_gnu();
+        match data {
+            Some(data) => {
+                header.set_size(data.len() as u64);
+                header.set_mode(0o644);
+                header.set_cksum();
+                builder
+                    .append_data(&mut header, name, data.as_bytes())
+                    .unwrap();
+            }
+            None => {
+                header.set_entry_type(tar_rs_crate::EntryType::Directory);
+                header.set_size(0);
+                header.set_mode(0o755);
+                header.set_cksum();
+                builder
+                    .append_data(&mut header, name, std::io::empty())
+                    .unwrap();
+            }
+        }
+    }
+    at.write_bytes("members.tar", &builder.into_inner().unwrap());
+}
+
+#[test]
+fn test_list_selects_named_members() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    member_selection_archive(&at);
+    ucmd.args(&["-tf", "members.tar", "src/a", "src/d/e"])
+        .succeeds()
+        .stdout_is("src/a\nsrc/d/e/\nsrc/d/e/c\n");
+}
+
+#[test]
+fn test_list_reports_a_member_not_in_the_archive() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    member_selection_archive(&at);
+    ucmd.args(&["-tf", "members.tar", "src/a", "src/nope"])
+        .fails()
+        .code_is(2)
+        .stdout_is("src/a\n")
+        .stderr_contains("src/nope: Not found in archive")
+        .stderr_contains("Exiting with failure status due to previous errors");
+}
+
+#[test]
+fn test_extract_selects_named_members() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    member_selection_archive(&at);
+    ucmd.args(&["-xf", "members.tar", "src/d/e"]).succeeds();
+    assert!(at.file_exists("src/d/e/c"));
+    assert!(!at.file_exists("src/a"));
+    assert!(!at.file_exists("src/d/b.txt"));
+}
+
+#[test]
+fn test_extract_reports_a_member_not_in_the_archive() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    member_selection_archive(&at);
+    ucmd.args(&["-xf", "members.tar", "src/a", "src/nope"])
+        .fails()
+        .code_is(2)
+        .stderr_contains("src/nope: Not found in archive");
+    assert!(at.file_exists("src/a"));
+}

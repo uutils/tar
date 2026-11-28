@@ -61,27 +61,10 @@ jobs:
         LLVM_PROFILE_FILE: "${{ github.workspace }}/tar-%p-%m.profraw"
         # Use -Z
         RUSTC_BOOTSTRAP: 1
-    - name: "`grcov` ~ install"
-      env:
-        # Use -Z
-        RUSTC_BOOTSTRAP: 1
-      id: build_grcov
-      shell: bash
-      run: |
-        git clone --depth=1 https://github.com/mozilla/grcov.git ~/grcov/
-        cd ~/grcov
-        # Hardcode the version of crossbeam-epoch. See
-        # https://github.com/uutils/coreutils/issues/3680
-        sed -i -e "s|tempfile =|crossbeam-epoch = \"=0.9.8\"\ntempfile =|" Cargo.toml
-        cargo install --path .
-        cd -
-# Uncomment when the upstream issue
-# https://github.com/mozilla/grcov/issues/849 is fixed
-#      uses: actions-rs/install@v0.1
-#      with:
-#        crate: grcov
-#        version: latest
-#        use-tool-cache: false
+    - name: Install grcov
+      uses: taiki-e/install-action@v2
+      with:
+        tool: grcov
     - name: "`llvm-tools` ~ install"
       shell: bash
       run: |

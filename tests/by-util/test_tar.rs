@@ -181,6 +181,42 @@ fn test_create_no_recursion() {
 }
 
 #[test]
+fn test_create_names_nested_dirs_with_trailing_slash() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    let separator = path::MAIN_SEPARATOR;
+    at.mkdir("dir1");
+    at.mkdir(format!("dir1{separator}dir2"));
+    at.mkdir(format!("dir1{separator}dir2{separator}dir3"));
+    at.write(&format!("dir1{separator}dir2{separator}file.txt"), "x");
+
+    ucmd.args(&["-cf", "archive.tar", "dir1"]).succeeds();
+
+    let data = std::fs::read(at.plus("archive.tar")).unwrap();
+    let mut archive = TarRsArchive::new(Cursor::new(data));
+    let mut names: Vec<(String, bool)> = archive
+        .entries()
+        .unwrap()
+        .map(|entry| {
+            let entry = entry.unwrap();
+            let is_dir = entry.header().entry_type().is_dir();
+            // Raw header bytes, so the trailing slash is not normalized away.
+            let name = String::from_utf8(entry.path_bytes().into_owned()).unwrap();
+            (name, is_dir)
+        })
+        .collect();
+    names.sort();
+    assert_eq!(
+        names,
+        [
+            ("dir1/".to_string(), true),
+            ("dir1/dir2/".to_string(), true),
+            ("dir1/dir2/dir3/".to_string(), true),
+            ("dir1/dir2/file.txt".to_string(), false),
+        ]
+    );
+}
+
+#[test]
 fn test_create_files_from() {
     let (at, mut ucmd) = at_and_ucmd!();
     at.mkdir("dir");

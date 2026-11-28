@@ -18,6 +18,9 @@ use uucore::error::UResult;
 /// # Arguments
 ///
 /// * `verbose` - Whether to print verbose output during extraction
+/// * `preserve_permissions` - Whether to give members the exact modes from the
+///   archive, setuid and sticky bits included, rather than clear the special
+///   bits and the bits in the umask
 ///
 /// # Errors
 ///
@@ -28,10 +31,19 @@ use uucore::error::UResult;
 pub fn extract_archive(
     input: impl Read,
     verbose: bool,
+    preserve_permissions: bool,
     compression: CompressionMode,
 ) -> UResult<()> {
     let reader = open_archive_reader(input, compression)?;
     let mut archive = Archive::new(reader);
+    archive.set_preserve_permissions(preserve_permissions);
+    // The tar crate applies the mask only on Unix
+    #[cfg(unix)]
+    archive.set_mask(if preserve_permissions {
+        0
+    } else {
+        uucore::mode::get_umask()
+    });
     let mut out = BufWriter::new(io::stdout().lock());
 
     // Members that were refused are reported as they are met; like GNU tar, the

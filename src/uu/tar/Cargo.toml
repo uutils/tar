@@ -17,7 +17,7 @@ clap = { workspace = true }
 flate2 = { workspace = true }
 tar = { workspace = true }
 thiserror = { workspace = true }
-uucore = { workspace = true, features = ["fs"] }
+uucore = { workspace = true, features = ["fs", "mode", "process"] }
 zstd = { workspace = true }
 
 [lib]
